@@ -1,6 +1,11 @@
-#include <iostream>
+#include "SequentialIndex.h"
 
 int main(){
-    std::cout<<29/10<<std::endl;
+    SequentialIndex si("i.bin", "a.bin", "r.bin");
+    std::cout<<"INDEX FILE"<<std::endl;
+    si.printIndexFile();
+
+    std::cout<<"AUX FILE"<<std::endl;
+    si.printAuxFile();
     return 0;
 }
