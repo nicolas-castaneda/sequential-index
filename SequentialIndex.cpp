@@ -218,7 +218,7 @@ Response SequentialIndex::search(Data data){
         } else if (bsr.location == REC_CUR) {
             this->getAllRawCurrentRecords(bsr.sir, response.records);
         } else {
-            //this->searchAuxFile(data, bsr, response.records);
+            this->searchAuxFile(data, bsr, response.records);
         }
     } catch (std::runtime_error) {
         response.stopTimer();
