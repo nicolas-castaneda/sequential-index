@@ -34,7 +34,7 @@ public:
 };
 
 inline std::ostream& operator<<(std::ostream& stream, const SequentialIndexRecord& sir) {
-        stream<<sir.data<<" | raw_pos: "<<sir.raw_pos<<" | current_pos: "<<sir.current_pos<<" | next_pos: "<<sir.next_pos<<" | next_file: "<<sir.next_file;
+        stream<<sir.data<<" | raw_pos: "<<sir.raw_pos<<" | dup_pos: "<<sir.dup_pos<<" | current_pos: "<<sir.current_pos<<" | current_file: "<<sir.current_file<<" | next_pos: "<<sir.next_pos<<" | next_file: "<<sir.next_file;
         return stream;
 }
 

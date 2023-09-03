@@ -4,41 +4,13 @@ int main(){
     SequentialIndex si("i.bin", "a.bin", "d.bin");
     si.search(Data(3));
 
-    //std::cout<<"INDEX FILE"<<std::endl;
-    //std::cout<<"ADD 2"<<std::endl;
     si.add(Data(2));
-   
-    si.search(Data(1));
-    si.search(Data(2));
-    si.search(Data(3));
-    si.search(Data(4));
-    si.search(Data(5));
-    si.search(Data(6));
-    si.search(Data(7));
-    
-    std::cout<<"INDEX FILE"<<std::endl;
-    std::cout<<"ADD 4"<<std::endl;
     si.add(Data(4));
-    si.printIndexFile();
-
-    si.search(Data(1));
-    si.search(Data(2));
-    si.search(Data(3));
-    si.search(Data(4));
-    si.search(Data(5));
-    si.search(Data(6));
-    si.search(Data(7));
     
     std::cout<<"INDEX FILE"<<std::endl;
     std::cout<<"ADD 6"<<std::endl;
     si.add(Data(6));
-    si.search(Data(1));
-    si.search(Data(2));
-    si.search(Data(3));
-    si.search(Data(4));
-    si.search(Data(5));
-    si.search(Data(6));
-    si.search(Data(7));
+
 
     std::cout<<"INDEX FILE"<<std::endl;
     si.printIndexFile();
@@ -46,5 +18,12 @@ int main(){
     std::cout<<"AUX FILE"<<std::endl;
     si.printAuxFile();
     
+    Response r = si.search(Data(7));
+
+    std::cout<<"RESPONSE"<<std::endl;
+    std::cout<<"Query time: "<<r.query_time<<std::endl;
+    for (auto record : r.records) {
+        std::cout<<record<<std::endl;
+    }
     return 0;
 }

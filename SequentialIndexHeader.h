@@ -4,10 +4,11 @@
 #include "utils.h"
 
 class SequentialIndexHeader {
-    physical_pos next_pos = -1;
-    file_pos next_file = 'F';
 
 public:
+    physical_pos next_pos = -1;
+    file_pos next_file = INDEXFILE;
+
     SequentialIndexHeader(){};
     SequentialIndexHeader(physical_pos _next_post, file_pos _next_file){
         this->next_pos = _next_post;

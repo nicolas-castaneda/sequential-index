@@ -1,8 +1,15 @@
 #include "SequentialIndexHeader.h"
 #include "SequentialIndexRecord.h"
 
+enum status {
+    EMPTY_FILE = -2,
+    REC_PREV = -1,
+    REC_CUR = 0,
+    REC_NEXT = 1
+};
+
 struct BinarySearchResponse {
-    int location;
+    status location;
     bool header;
 
     SequentialIndexHeader sih;
@@ -12,7 +19,7 @@ struct BinarySearchResponse {
     SequentialIndexRecord sir_next;
 
     BinarySearchResponse() {
-        this->location = -1;
+        this->location = EMPTY_FILE;
         this->header = false;
     }
 

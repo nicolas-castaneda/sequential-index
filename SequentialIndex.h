@@ -32,13 +32,16 @@ class SequentialIndex {
     bool fileExists();
     void rebuild();
 
+    void getAllRawCurrentRecords(SequentialIndexRecord sir, std::vector<physical_pos>& records);
+    void searchAuxFile(Data data, BinarySearchResponse& bir, std::vector<physical_pos>& records);
+
     /*
         Binary search in files
     */
-
-public:
     template<typename FileType = std::fstream>
     BinarySearchResponse binarySearch(FileType& file, Data data);
+
+public:
     /*
         Constructor
     */

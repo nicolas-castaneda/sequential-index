@@ -38,7 +38,7 @@ inline std::ostream& operator<<(std::ostream& stream, const Data& data){
 }
 
 struct Response {
-    std::vector<Data> records;
+    std::vector<physical_pos> records;
     time_t query_time;
 
     Response(){}
