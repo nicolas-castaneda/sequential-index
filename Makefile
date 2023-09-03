@@ -14,7 +14,7 @@ INCLUDE_DIRS = -I.
 
 # Source files and output executable
 SRCS = main.cpp SequentialIndex.cpp
-HEADERS = SequentialIndex.h SequentialIndexHeader.h SequentialIndexRecord.h utils.h libraries.h
+HEADERS = SequentialIndex.h SequentialIndexHeader.h SequentialIndexRecord.h BinarySearchResponse.h utils.h libraries.h
 OUTPUT = program$(EXECUTABLE_EXTENSION)
 
 # Object files (automatically generated)

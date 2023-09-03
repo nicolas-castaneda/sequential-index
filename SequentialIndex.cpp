@@ -83,37 +83,50 @@ BinarySearchResponse SequentialIndex::binarySearch(FileType& file, Data data){
     BinarySearchResponse bsr;
 
     size_t header_offset = sizeof(SequentialIndexHeader);
-    size_t sequentialIndexSize = sizeof(SequentialIndex);
+    size_t sequentialIndexSize = sizeof(SequentialIndexRecord);
 
     physical_pos logical_left = 0;
 
     file.seekp(0, std::ios::end);
-    physical_pos logical_right = (file.tellp() - header_offset) / sequentialIndexSize;
+    if (file.tellp() == header_offset) { bsr.location = -2; return bsr;}
+    physical_pos physical_last = file.tellp();
+    physical_pos logical_right = (physical_last - header_offset) / sequentialIndexSize;
     file.seekp(0, std::ios::beg);
 
-    SequentialIndexRecord sir_cur;
-    SequentialIndexRecord sir_prev;
-    SequentialIndexRecord sir_next;
     SequentialIndexHeader sih;
-
-    physical_pos physical_current;
+    SequentialIndexRecord sir_prev, sir_cur, sir_next;
 
     while (logical_left <= logical_right) {
         physical_pos logical_mid = (logical_left + logical_right) / 2;
         file.seekp( header_offset + ( logical_mid * sequentialIndexSize ), std::ios::beg);
-        
-        if ( file.tellp() != header_offset) { file.seekp(-sequentialIndexSize, std::ios::cur); this->readRecord(file, sir_prev); } 
-        else { this->readHeader(file, sih); }
         this->readRecord(file, sir_cur);
-        if (file.peek() != EOF) { this->readRecord(file, sir_next); }
+        if ( sir_cur.current_pos != header_offset) { file.seekp(-2*sequentialIndexSize, std::ios::cur); this->readRecord(file, sir_prev); } 
+        else { this->readHeader(file, sih); }
+        if (sir_cur.current_pos + sequentialIndexSize != physical_last) { file.seekp(sequentialIndexSize, std::ios::cur); this->readRecord(file, sir_next); }
 
         if (sir_cur.data == data) {
-
+            bsr.location = 0;
             break;
+        } else if (sir_cur.current_pos + sequentialIndexSize == physical_last && sir_cur.data < data) {
+            bsr.location = 1;
+            break;
+        } else if (sir_cur.current_pos == header_offset && data < sir_cur.data) {
+            bsr.location = -1;
+            bsr.setHeader(sih);
+            break;
+        } else if (sir_prev.data < data && data < sir_cur.data) {
+            bsr.location = -1;
+            break;
+        } else if (sir_cur.data < data && data < sir_next.data) {
+            bsr.location = 1;
+            break;
+        } else if (sir_cur.data < data) {
+            logical_left = logical_mid + 1;
+        } else {
+            logical_right = logical_mid - 1;
         }
-
-
     }
+    bsr.setRecords(sir_prev, sir_cur, sir_next);
 
     return bsr;
 }
@@ -129,10 +142,26 @@ Response SequentialIndex::add(Data data){
     if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
 
     indexFile.seekp(0, std::ios::end);
-    SequentialIndexRecord sir(data, indexFile.tellp(), -1, -1, INDEXFILE, -1, INDEXFILE);
+    SequentialIndexRecord sir(data, indexFile.tellp(), -1, indexFile.tellp(), INDEXFILE, -1, INDEXFILE);
     this->writeRecord(indexFile, sir);
 
     response.stopTimer();
+    indexFile.close();
+    return response;
+}
+
+Response SequentialIndex::search(Data data){
+    Response response;
+    response.startTimer();
+
+    std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
+    if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
+
+    BinarySearchResponse bsr = this->binarySearch(indexFile, data);
+    std::cout<<bsr<<std::endl;
+
+    response.stopTimer();
+    indexFile.close();
     return response;
 }
 

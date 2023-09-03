@@ -35,10 +35,10 @@ class SequentialIndex {
     /*
         Binary search in files
     */
-    template<typename FileType = std::fstream>
-    BinarySearchResponse binarySearch(FileType& file, Data data);
 
 public:
+    template<typename FileType = std::fstream>
+    BinarySearchResponse binarySearch(FileType& file, Data data);
     /*
         Constructor
     */
