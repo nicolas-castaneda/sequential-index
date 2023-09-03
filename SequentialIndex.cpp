@@ -98,11 +98,15 @@ BinarySearchResponse SequentialIndex::binarySearch(FileType& file, Data data){
 
     while (logical_left <= logical_right) {
         physical_pos logical_mid = (logical_left + logical_right) / 2;
-        file.seekp( header_offset + ( logical_mid * sequentialIndexSize ), std::ios::beg);
+        physical_pos physical_mid = header_offset + ( logical_mid * sequentialIndexSize );
+        
+        file.seekp( physical_mid, std::ios::beg);
         this->readRecord(file, sir_cur);
-        if ( sir_cur.current_pos != header_offset) { file.seekp(-2*sequentialIndexSize, std::ios::cur); this->readRecord(file, sir_prev); } 
+        if ( sir_cur.current_pos != header_offset) { 
+            file.seekp(-2*sequentialIndexSize, std::ios::cur); this->readRecord(file, sir_prev); } 
         else { this->readHeader(file, sih); }
-        if (sir_cur.current_pos + sequentialIndexSize != physical_last) { file.seekp(sequentialIndexSize, std::ios::cur); this->readRecord(file, sir_next); }
+        if (sir_cur.current_pos + sequentialIndexSize != physical_last) { 
+            file.seekp(sequentialIndexSize, std::ios::cur); this->readRecord(file, sir_next); }
 
         if (sir_cur.data == data) {
             bsr.location = 0;
