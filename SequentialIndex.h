@@ -22,25 +22,21 @@ class SequentialIndex {
     template<typename FileType = std::fstream>
     void readRecord(FileType& file, SequentialIndexRecord& sir);
 
+    template<typename FileType = std::fstream>
+    void writeRecord(FileType& file, SequentialIndexRecord& sir);
+
     /*
         Helper functions 
     */
     void createFile();
     bool fileExists();
+    void rebuild();
 
     /*
-        Navigate function
+        Binary search in files
     */
     template<typename FileType = std::fstream>
     BinarySearchResponse binarySearch(FileType& file, Data data);
-
-    /*
-        Query functions
-    */
-    Response add(Data data);
-    Response search(Data data);
-    Response rangeSearch(Data begin, Data end);
-    Response erase(Data data);
 
 public:
     /*
@@ -56,6 +52,14 @@ public:
         this->duplicatesFilename = _duplicatesFilename;
         if (!fileExists()) { createFile(); }
     }
+
+    /*
+        Query functions
+    */
+    Response add(Data data);
+    Response search(Data data);
+    Response rangeSearch(Data begin, Data end);
+    Response erase(Data data);
 
     /*
         Print files sequentially

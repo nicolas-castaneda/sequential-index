@@ -18,6 +18,18 @@ struct Data {
         this->numero = _numero;
     }
     friend std::ostream& operator<<(std::ostream& stream, const Data& sir);
+
+    bool operator==(const Data& other) const {
+        return this->numero == other.numero;
+    }
+
+    bool operator<(const Data& other) const {
+        return this->numero < other.numero;
+    }
+
+    bool operator>(const Data& other) const {
+        return this->numero > other.numero;
+    }
 };
 
 inline std::ostream& operator<<(std::ostream& stream, const Data& data){
@@ -28,6 +40,16 @@ inline std::ostream& operator<<(std::ostream& stream, const Data& data){
 struct Response {
     std::vector<Data> records;
     time_t query_time;
+
+    Response(){}
+
+    void startTimer() {
+        this->query_time = time(NULL);
+    }
+
+    void stopTimer() {
+        this->query_time = time(NULL) - this->query_time;
+    }
 };
 
 #endif // UTILS_H

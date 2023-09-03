@@ -7,15 +7,23 @@ class SequentialIndexRecord {
     Data data;
     physical_pos raw_pos;
     physical_pos dup_pos;
+
+    physical_pos current_pos;
+    file_pos current_file;
+
     physical_pos next_pos;
-    physical_pos next_file;
+    file_pos next_file;
 
 public:
     SequentialIndexRecord(){};    
-    SequentialIndexRecord(Data data, physical_pos _raw_pos, physical_pos _dup_pos, physical_pos _next_post, file_pos _next_file){
+    SequentialIndexRecord(Data data, physical_pos _raw_pos, physical_pos _dup_pos, physical_pos _current_pos, file_pos _current_file, physical_pos _next_post, file_pos _next_file){
         this->data = data;
         this->raw_pos = _raw_pos, 
         this->dup_pos = _dup_pos;
+
+        this->current_pos = _current_pos;
+        this->current_file = _current_file;
+        
         this->next_pos = _next_post;
         this->next_file = _next_file;
     };
