@@ -25,6 +25,14 @@ class SequentialIndex {
     template<typename FileType = std::fstream>
     void writeRecord(FileType& file, SequentialIndexRecord& sir);
 
+    template<typename FileType = std::fstream>
+    void moveReadRecord(FileType& file, physical_pos& pos, SequentialIndexRecord& sir);
+
+    template<typename FileType = std::fstream>
+    void moveWriteRecord(FileType& file, physical_pos& pos,SequentialIndexRecord& sir);
+
+
+
     /*
         Helper functions 
     */
@@ -34,6 +42,18 @@ class SequentialIndex {
 
     void getAllRawCurrentRecords(SequentialIndexRecord sir, std::vector<physical_pos>& records);
     void searchAuxFile(Data data, BinarySearchResponse& bir, std::vector<physical_pos>& records);
+
+    template <typename FileType = std::fstream>
+    void insertDuplicate(FileType& file, SequentialIndexRecord& sir, SequentialIndexRecord& sir_dup);
+
+    template <typename FileType = std::fstream>
+    void insertAux(FileType& indexFile, SequentialIndexRecord& sir_init, SequentialIndexRecord& sir, BinarySearchResponse& bsr);
+
+    void insertDuplicateFile(SequentialIndexRecord& sir);
+    void insertAuxFile(SequentialIndexRecord& sir);
+
+    template <typename FileType = std::fstream>
+    void insertAfterRecord(FileType& file, SequentialIndexRecord& sir_prev, SequentialIndexRecord& sir, SequentialIndexHeader& sih, bool header);
 
     /*
         Binary search in files

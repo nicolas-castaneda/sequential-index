@@ -46,6 +46,26 @@ void SequentialIndex::writeRecord(FileType& file, SequentialIndexRecord& sir){
     }
 }
 
+template<typename FileType = std::fstream>
+    void SequentialIndex::moveReadRecord(FileType& file, physical_pos& pos, SequentialIndexRecord& sir){
+    try {
+        file.seekp(pos, std::ios::beg);
+        file.read(reinterpret_cast<char*> (&sir), sizeof(SequentialIndexRecord));
+    } catch (...) {
+        throw std::runtime_error("Couldn't move read record");
+    }
+}
+
+template<typename FileType = std::fstream>
+void SequentialIndex::moveWriteRecord(FileType& file, physical_pos& pos,SequentialIndexRecord& sir){
+    try {
+        file.seekp(pos, std::ios::beg);
+        file.write(reinterpret_cast<char*> (&sir), sizeof(SequentialIndexRecord));
+    } catch (...) {
+        throw std::runtime_error("Couldn't move write record");
+    }
+}
+
 void SequentialIndex::rebuild(){
 
 }
@@ -140,6 +160,145 @@ BinarySearchResponse SequentialIndex::binarySearch(FileType& file, Data data){
 /*
     Query functions
 */
+
+void SequentialIndex::insertDuplicateFile(SequentialIndexRecord& sir){
+    std::fstream duplicatesFile(this->duplicatesFilename, std::ios::in | std::ios::out | std::ios::binary);
+    if (!duplicatesFile.is_open()) throw std::runtime_error("Couldn't open duplicatesFile");
+
+    duplicatesFile.seekp(0, std::ios::end);
+    physical_pos physical_pos = duplicatesFile.tellp();
+
+    sir.setCurrent(physical_pos, DUPFILE);
+
+    try {
+        this->writeRecord(duplicatesFile, sir);
+    } catch (...) {
+        duplicatesFile.close();
+        throw std::runtime_error("Couldn't insert duplicate");
+    }
+    duplicatesFile.close();
+}
+
+void SequentialIndex::insertAuxFile(SequentialIndexRecord& sir){
+    std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
+    if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
+
+    auxFile.seekp(0, std::ios::end);
+    physical_pos physical_pos = auxFile.tellp();
+
+    sir.setCurrent(physical_pos, AUXFILE);
+
+    try {
+        this->writeRecord(auxFile, sir);
+    } catch (...) {
+        auxFile.close();
+        throw std::runtime_error("Couldn't insert auxFile");
+    }
+    
+    auxFile.close();
+};
+
+template <typename FileType = std::fstream>
+void SequentialIndex::insertAfterRecord(FileType& file, SequentialIndexRecord& sir_prev, SequentialIndexRecord& sir, SequentialIndexHeader& sih, bool header){
+    try {
+        if (header) {
+            sir.setNext(sih.next_pos, sih.next_file);
+            this->insertAuxFile(sir);
+            this->writeHeader(file, sir.current_pos, sir.current_file);
+        } else {
+            sir.setNext(sir_prev.next_pos, sir_prev.next_file);
+            this->insertAuxFile(sir);
+            sir_prev.setNext(sir.current_pos, sir.current_file);
+            file.seekp(sir_prev.current_pos, std::ios::beg);
+            this->writeRecord(file, sir_prev);
+        }
+    } catch (...) {
+        throw std::runtime_error("Couldn't insert between records");
+    }
+}
+
+template <typename FileType = std::fstream>
+void insertDuplicate(FileType& file, SequentialIndexRecord& sir, SequentialIndexRecord& sir_dup){
+    try {
+        sir_dup.setDupPos(sir.dup_pos);
+        this->insertDuplicateFile(sir_dup);
+        sir.setDupPos(sir_dup.current_pos);
+        this->moveWriteRecord(file, sir.current_pos, sir);
+    } catch (...) {
+        throw std::runtime_error("Couldn't insert duplicate");
+    }
+}
+
+template <typename FileType = std::fstream>
+void insertAux(FileType& indexFile, SequentialIndexRecord& sir_init, SequentialIndexRecord& sir, BinarySearchResponse& bsr){
+    std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
+    if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
+
+    SequentialIndexRecord sir_prev = sir_init;
+    SequentialIndexRecord sir_cur;
+    
+    try {
+        if (bsr.header) {
+            auxFile.seekp(bsr.sih.next_pos, std::ios::beg);
+        } else {
+            auxFile.seekp(sir_prev.next_pos, std::ios::beg);
+        }
+        this->readRecord(auxFile, sir_cur);
+
+        bool inserted = false;
+
+        if (bsr.header) {
+            if (sir.data < sir_cur.data) {
+                this->insertAfterRecord(auxFile, sir_init, sir, bsr.sih, bsr.header);
+                inserted = true;
+            } else if (sir.data == sir_cur.data) {
+                this->insertDuplicate(auxFile, sir_cur, sir);
+                inserted = true;
+            } else if (sir_cur.next_file == INDEXFILE) {
+                this->insertAfterRecord(auxFile, sir_cur, sir, bsr.sih, !bsr.header);
+                inserted = true;
+            } else {
+                sir_prev = sir_cur;
+                this->moveReadRecord(auxFile, sir_cur.next_pos, sir_cur);
+                bsr.header = false;
+            }
+        } else if (sir_prev.data < sir.data && sir.data < sir_cur.data) {
+            this->insertAfterRecord(indexFile, sir_prev, sir, bsr.sih, bsr.header);
+            inserted = true;
+        } 
+
+        if (!inserted) {
+            while (sir_cur.next_file != INDEXFILE) {
+                if (sir_cur.data == sir.data) { 
+                    this->insertDuplicate(auxFile, sir_cur, sir);
+                    break;
+                }
+                else if (sir_prev.data < sir.data && sir.data < sir_cur.data) {
+                    this->insertAfterRecord(auxFile, sir_prev, sir, bsr.sih, bsr.header);  
+                    break;      
+                }
+                sir_prev = sir_cur;
+                this->moveReadRecord(auxFile, sir_cur.next_pos, sir_cur);
+            }
+
+            if (sir_cur.next_file == INDEXFILE) {
+                if (sir_cur.data == sir.data) { 
+                    this->insertDuplicate(auxFile, sir_cur, sir);
+                } else if (sir_cur.data < sir.data) {
+                    this->insertAfterRecord(auxFile, sir_cur, sir, bsr.sih, bsr.header);
+                } else {
+                    this->insertAfterRecord(auxFile, sir_prev, sir, bsr.sih, bsr.header);
+                }
+            }
+        }
+    } catch (...) {
+        auxFile.close();
+        throw std::runtime_error("Couldn't insert auxFile");
+    }
+    
+    auxFile.close();
+}
+
 Response SequentialIndex::add(Data data){
     Response response;
     response.startTimer();
@@ -147,11 +306,50 @@ Response SequentialIndex::add(Data data){
     std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
 
-    indexFile.seekp(0, std::ios::end);
-    physical_pos current_pos = indexFile.tellp();
-    physical_pos next = current_pos + sizeof(SequentialIndexRecord);
-    SequentialIndexRecord sir(data, data.numero, -1, indexFile.tellp(), INDEXFILE, next, INDEXFILE);
-    this->writeRecord(indexFile, sir);
+    SequentialIndexRecord sir;
+    sir.setData(data);
+    sir.setRawPos(data.numero);
+    sir.setDupPos(-1);
+
+    try {
+        BinarySearchResponse bsr = this->binarySearch(indexFile, data);
+        if (bsr.location == EMPTY_FILE) { 
+            // Insert as first record
+            sir.setCurrent(sizeof(SequentialIndexHeader), INDEXFILE);
+            sir.setNext(-1, INDEXFILE);
+            this->writeHeader(indexFile, sizeof(SequentialIndexHeader), INDEXFILE); 
+            this->writeRecord(indexFile, sir);
+            response.records.push_back(sir.raw_pos);
+        } else if (bsr.header && bsr.sih.next_file == INDEXFILE) {
+            // Insert between header and first record
+            this->insertAfterRecord(indexFile, bsr.sir_prev, sir, bsr.sih, bsr.header);
+        } else if (bsr.header ) {
+            // Move to aux file from header
+            this->insertAux(indexFile, bsr.sir_prev, sir, bsr);
+        } else if (bsr.location == -1 && bsr.sir_prev.next_file == INDEXFILE) {
+            // Insert between prev and cur
+            this->insertAfterRecord(indexFile, bsr.sir_prev, sir, bsr.sih, bsr.header);
+        } else if (bsr.location == -1) {
+            // Move to aux file from prev
+            this->insertAux(indexFile, bsr.sir_prev, sir, bsr);
+        } else if (bsr.location == 0) {
+            // Insert duplicate
+            this->insertDuplicate(indexFile, bsr.sir, sir);
+        } else if (bsr.sir.next_file == INDEXFILE) {
+            // Insert between cur and next
+            this->insertAfterRecord(indexFile, bsr.sir, sir, bsr.sih, bsr.header);
+        } else {
+            // Move to aux file from cur
+            this->insertAux(indexFile, bsr.sir, sir, bsr);
+        }
+
+        
+
+    } catch (std::runtime_error) {
+        response.stopTimer();
+        indexFile.close();
+        throw std::runtime_error("Couldn't add");
+    }
 
     response.stopTimer();
     indexFile.close();
@@ -179,9 +377,9 @@ void SequentialIndex::getAllRawCurrentRecords(SequentialIndexRecord sir, std::ve
 void SequentialIndex::searchAuxFile(Data data, BinarySearchResponse& bir, std::vector<physical_pos>& records){
     std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
-
+    
+    SequentialIndexRecord sir;
     try {
-        SequentialIndexRecord sir;
         if (bir.header) {
             if (bir.sih.next_file == INDEXFILE) return;            
             auxFile.seekp(bir.sih.next_pos, std::ios::beg);

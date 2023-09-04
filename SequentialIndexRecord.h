@@ -30,6 +30,28 @@ public:
         this->next_file = _next_file;
     };
 
+    void setData(Data data) {
+        this->data = data;
+    }
+
+    void setRawPos(physical_pos _raw_pos) {
+        this->raw_pos = _raw_pos;
+    }
+
+    void setDupPos(physical_pos _dup_pos) {
+        this->dup_pos = _dup_pos;
+    }
+
+    void setCurrent(physical_pos _current_pos, file_pos _current_file) {
+        this->current_pos = _current_pos;
+        this->current_file = _current_file;
+    }
+
+    void setNext(physical_pos _next_pos, file_pos _next_file) {
+        this->next_pos = _next_pos;
+        this->next_file = _next_file;
+    }
+
     friend std::ostream& operator<<(std::ostream& stream, const SequentialIndexRecord& sir);
 };
 

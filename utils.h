@@ -5,6 +5,7 @@
 
 const char INDEXFILE = 'f';
 const char AUXFILE = 'a';
+const char DUPFILE = 'd';
 
 using physical_pos = long;
 using file_pos = char;
