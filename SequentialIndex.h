@@ -31,8 +31,6 @@ class SequentialIndex {
     template<typename FileType = std::fstream>
     void moveWriteRecord(FileType& file, physical_pos& pos,SequentialIndexRecord& sir);
 
-
-
     /*
         Helper functions 
     */

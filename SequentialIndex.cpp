@@ -67,7 +67,102 @@ void SequentialIndex::moveWriteRecord(FileType& file, physical_pos& pos,Sequenti
 }
 
 void SequentialIndex::rebuild(){
+    std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
+    if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
 
+    std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
+    if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
+
+    std::fstream duplicatesFile(this->duplicatesFilename, std::ios::in | std::ios::out | std::ios::binary);
+    if (!duplicatesFile.is_open()) throw std::runtime_error("Couldn't open duplicatesFile");
+
+    std::ofstream newIndexFile("new_" + this->indexFilename, std::ios::app | std::ios::binary);
+    if (!newIndexFile.is_open()) throw std::runtime_error("Couldn't create newIndexFile");
+
+    std::ofstream newAuxFile("new_" + this->auxFilename, std::ios::app | std::ios::binary);
+    if (!newAuxFile.is_open()) throw std::runtime_error("Couldn't create newAuxFile");
+
+    std::ofstream newDuplicatesFile("new_" + this->duplicatesFilename, std::ios::app | std::ios::binary);
+    if (!newDuplicatesFile.is_open()) throw std::runtime_error("Couldn't create newDuplicatesFile");
+
+    SequentialIndexHeader sih;
+    SequentialIndexRecord sir;
+    SequentialIndexRecord sir_dup;
+
+    try {
+        readHeader(indexFile, sih);
+        writeHeader(newIndexFile, sizeof(SequentialIndexRecord), INDEXFILE);
+        if (sih.next_file == INDEXFILE) {
+            this->moveReadRecord(indexFile, sih.next_pos, sir);
+        } else {
+            this->moveReadRecord(auxFile, sih.next_pos, sir);
+        }
+        physical_pos next_move;
+        physical_pos next_dup;
+        file_pos next_file;
+
+        while(next_move != -1){
+            if (sir.dup_pos != -1) {
+                physical_pos current_dup_pos = newDuplicatesFile.tellp();
+                next_dup = sir.next_pos;
+                sir.setDupPos(current_dup_pos);
+                this->moveReadRecord(duplicatesFile, next_dup, sir_dup);
+                
+                while (next_dup != -1) {
+                    physical_pos current_dup_pos = newDuplicatesFile.tellp();
+                    sir_dup.setCurrent(current_dup_pos, DUPFILE);
+                    next_dup = sir_dup.dup_pos;
+                    sir_dup.setDupPos(current_dup_pos + sizeof(SequentialIndexRecord));
+                    this->writeRecord(newDuplicatesFile, sir_dup);
+                    this->moveReadRecord(duplicatesFile, next_dup, sir_dup);
+                }
+                sir_dup.setCurrent(newDuplicatesFile.tellp(), DUPFILE);
+                sir_dup.setDupPos(-1);
+                this->writeRecord(newDuplicatesFile, sir_dup);
+            }
+            physical_pos current_pos = newIndexFile.tellp();
+            sir.setCurrent(current_pos, INDEXFILE);
+            next_move = sir.next_pos;
+            next_file = sir.next_file;
+            sir.setNext(current_pos + sizeof(SequentialIndexRecord), INDEXFILE);
+            this->writeRecord(newIndexFile, sir);
+            if (next_file == INDEXFILE) {
+                this->moveReadRecord(indexFile, next_move, sir);
+            } else {
+                this->moveReadRecord(auxFile, next_move, sir);
+            }
+        }
+        sir.setCurrent(newIndexFile.tellp(), INDEXFILE);
+        sir.setNext(-1, INDEXFILE);
+        this->writeRecord(newIndexFile, sir);
+        
+    } catch (...) {
+        indexFile.close();
+        auxFile.close();
+        duplicatesFile.close();
+        newIndexFile.close();
+        newDuplicatesFile.close();
+        throw std::runtime_error("Couldn't rebuild");
+    }
+    
+    indexFile.close();
+    auxFile.close();
+    duplicatesFile.close();
+    newIndexFile.close();
+    newAuxFile.close();
+    newDuplicatesFile.close();
+
+    // truncate old files replace name with new
+    try {
+        std::remove(this->indexFilename.c_str());
+        std::rename(("new_" + this->indexFilename).c_str(), this->indexFilename.c_str());
+        std::remove(this->auxFilename.c_str());
+        std::rename(("new_" + this->auxFilename).c_str(), this->auxFilename.c_str());
+        std::remove(this->duplicatesFilename.c_str());
+        std::rename(("new_" + this->duplicatesFilename).c_str(), this->duplicatesFilename.c_str());
+    } catch (...) {
+        throw std::runtime_error("Couldn't rebuild");
+    }
 }
 
 /*
@@ -343,7 +438,7 @@ Response SequentialIndex::add(Data data){
             this->insertAux(indexFile, bsr.sir, sir, bsr);
         }
 
-        if (!this->validNumberRecords()) this->rebuild();
+        
 
     } catch (std::runtime_error) {
         response.stopTimer();
@@ -351,8 +446,11 @@ Response SequentialIndex::add(Data data){
         throw std::runtime_error("Couldn't add");
     }
 
+    response.records.push_back(sir.raw_pos);
     response.stopTimer();
     indexFile.close();
+
+    if (!this->validNumberRecords()) this->rebuild();
     return response;
 }
 
