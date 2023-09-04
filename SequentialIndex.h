@@ -40,6 +40,10 @@ class SequentialIndex {
     bool fileExists();
     void rebuild();
 
+    size_t numberIndexRecords();
+    size_t numberAuxRecords();
+    bool validNumberRecords();
+
     void getAllRawCurrentRecords(SequentialIndexRecord sir, std::vector<physical_pos>& records);
     void searchAuxFile(Data data, BinarySearchResponse& bir, std::vector<physical_pos>& records);
 

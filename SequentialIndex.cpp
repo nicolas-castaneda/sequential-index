@@ -218,7 +218,7 @@ void SequentialIndex::insertAfterRecord(FileType& file, SequentialIndexRecord& s
 }
 
 template <typename FileType = std::fstream>
-void insertDuplicate(FileType& file, SequentialIndexRecord& sir, SequentialIndexRecord& sir_dup){
+void SequentialIndex::insertDuplicate(FileType& file, SequentialIndexRecord& sir, SequentialIndexRecord& sir_dup){
     try {
         sir_dup.setDupPos(sir.dup_pos);
         this->insertDuplicateFile(sir_dup);
@@ -230,7 +230,7 @@ void insertDuplicate(FileType& file, SequentialIndexRecord& sir, SequentialIndex
 }
 
 template <typename FileType = std::fstream>
-void insertAux(FileType& indexFile, SequentialIndexRecord& sir_init, SequentialIndexRecord& sir, BinarySearchResponse& bsr){
+void SequentialIndex::insertAux(FileType& indexFile, SequentialIndexRecord& sir_init, SequentialIndexRecord& sir, BinarySearchResponse& bsr){
     std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
 
@@ -343,7 +343,7 @@ Response SequentialIndex::add(Data data){
             this->insertAux(indexFile, bsr.sir, sir, bsr);
         }
 
-        
+        if (!this->validNumberRecords()) this->rebuild();
 
     } catch (std::runtime_error) {
         response.stopTimer();
@@ -468,6 +468,30 @@ void SequentialIndex::printAuxFile() {
         throw std::runtime_error("Couldn't print auxFile");
     }
     auxFile.close();
+}
+
+size_t SequentialIndex::numberIndexRecords(){
+    std::ifstream indexFile(this->indexFilename, std::ios::in | std::ios::binary);
+    if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
+    indexFile.seekg(0, std::ios::end);
+    size_t size = indexFile.tellg();
+    indexFile.close();
+    return (size - sizeof(SequentialIndexHeader)) / sizeof(SequentialIndexRecord);
+}
+
+size_t SequentialIndex::numberAuxRecords(){
+    std::ifstream auxFile(this->auxFilename, std::ios::in | std::ios::binary);
+    if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
+    auxFile.seekg(0, std::ios::end);
+    size_t size = auxFile.tellg();
+    auxFile.close();
+    return size / sizeof(SequentialIndexRecord);
+}
+
+bool SequentialIndex::validNumberRecords(){
+    size_t indexRecords = this->numberIndexRecords();
+    size_t auxRecords = this->numberAuxRecords();
+    return log2(indexRecords) >= auxRecords;
 }
 
 #endif //SEQUENTIALINDEX_CPP
