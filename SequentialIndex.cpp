@@ -67,6 +67,11 @@ void SequentialIndex::moveWriteRecord(FileType& file, physical_pos& pos,Sequenti
 }
 
 void SequentialIndex::rebuild(){
+/*    std::cout<<"REBUILD INDEX FILE"<<std::endl; // TODO: remove this "debug"
+    this->printIndexFile();
+    std::cout<<"REBUILD AUX FILE"<<std::endl; // TODO: remove this "debug"
+    this->printAuxFile();
+  */  
     std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
 
@@ -91,7 +96,7 @@ void SequentialIndex::rebuild(){
 
     try {
         readHeader(indexFile, sih);
-        writeHeader(newIndexFile, sizeof(SequentialIndexRecord), INDEXFILE);
+        writeHeader(newIndexFile, sizeof(SequentialIndexHeader), INDEXFILE);
         if (sih.next_file == INDEXFILE) {
             this->moveReadRecord(indexFile, sih.next_pos, sir);
         } else {
@@ -101,7 +106,7 @@ void SequentialIndex::rebuild(){
         physical_pos next_dup;
         file_pos next_file;
 
-        while(next_move != -1){
+        while(sir.next_pos != -1){
             if (sir.dup_pos != -1) {
                 physical_pos current_dup_pos = newDuplicatesFile.tellp();
                 next_dup = sir.next_pos;
@@ -132,6 +137,25 @@ void SequentialIndex::rebuild(){
                 this->moveReadRecord(auxFile, next_move, sir);
             }
         }
+
+        if (sir.dup_pos != -1) {
+            physical_pos current_dup_pos = newDuplicatesFile.tellp();
+            next_dup = sir.next_pos;
+            sir.setDupPos(current_dup_pos);
+            this->moveReadRecord(duplicatesFile, next_dup, sir_dup);
+            
+            while (next_dup != -1) {
+                physical_pos current_dup_pos = newDuplicatesFile.tellp();
+                sir_dup.setCurrent(current_dup_pos, DUPFILE);
+                next_dup = sir_dup.dup_pos;
+                sir_dup.setDupPos(current_dup_pos + sizeof(SequentialIndexRecord));
+                this->writeRecord(newDuplicatesFile, sir_dup);
+                this->moveReadRecord(duplicatesFile, next_dup, sir_dup);
+            }
+            sir_dup.setCurrent(newDuplicatesFile.tellp(), DUPFILE);
+            sir_dup.setDupPos(-1);
+            this->writeRecord(newDuplicatesFile, sir_dup);
+        }
         sir.setCurrent(newIndexFile.tellp(), INDEXFILE);
         sir.setNext(-1, INDEXFILE);
         this->writeRecord(newIndexFile, sir);
@@ -152,7 +176,7 @@ void SequentialIndex::rebuild(){
     newAuxFile.close();
     newDuplicatesFile.close();
 
-    // truncate old files replace name with new
+    // truncate old files and replace new files with old names
     try {
         std::remove(this->indexFilename.c_str());
         std::rename(("new_" + this->indexFilename).c_str(), this->indexFilename.c_str());
@@ -161,7 +185,7 @@ void SequentialIndex::rebuild(){
         std::remove(this->duplicatesFilename.c_str());
         std::rename(("new_" + this->duplicatesFilename).c_str(), this->duplicatesFilename.c_str());
     } catch (...) {
-        throw std::runtime_error("Couldn't rebuild");
+        throw std::runtime_error("Couldn't rename files");
     }
 }
 
@@ -450,7 +474,12 @@ Response SequentialIndex::add(Data data){
     response.stopTimer();
     indexFile.close();
 
-    if (!this->validNumberRecords()) this->rebuild();
+    if (!this->validNumberRecords()) {
+        //std::cout<<this->numberIndexRecords()<<std::endl;
+        //std::cout<<this->numberAuxRecords()<<std::endl;
+        //std::cout<<"REBUILD"<<std::endl; // TODO: remove this "debug
+        this->rebuild();
+    }
     return response;
 }
 
@@ -566,6 +595,21 @@ void SequentialIndex::printAuxFile() {
         throw std::runtime_error("Couldn't print auxFile");
     }
     auxFile.close();
+}
+
+void SequentialIndex::printDuplicatesFile() {
+    std::fstream duplicatesFile(this->duplicatesFilename, std::ios::in | std::ios::out | std::ios::binary);
+    SequentialIndexRecord sir;
+    try {
+        while(duplicatesFile.peek() != EOF) {
+            this->readRecord(duplicatesFile, sir);
+            std::cout<<sir<<std::endl;
+        }
+    } catch (std::runtime_error) {
+        duplicatesFile.close();
+        throw std::runtime_error("Couldn't print duplicatesFile");
+    }
+    duplicatesFile.close();
 }
 
 size_t SequentialIndex::numberIndexRecords(){

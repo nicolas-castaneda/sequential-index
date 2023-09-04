@@ -91,6 +91,7 @@ public:
     */
     void printIndexFile();
     void printAuxFile();
+    void printDuplicatesFile();
 };
 
 #endif //SEQUENTIALINDEX_H
