@@ -67,11 +67,13 @@ void SequentialIndex::moveWriteRecord(FileType& file, physical_pos& pos,Sequenti
 }
 
 void SequentialIndex::rebuild(){
-/*    std::cout<<"REBUILD INDEX FILE"<<std::endl; // TODO: remove this "debug"
+    /* std::cout<<"REBUILD INDEX FILE"<<std::endl; // TODO: remove this "debug"
     this->printIndexFile();
     std::cout<<"REBUILD AUX FILE"<<std::endl; // TODO: remove this "debug"
     this->printAuxFile();
-  */  
+    std::cout<<"REBUILD DUPLICATES FILE"<<std::endl; // TODO: remove this "debug"
+    this->printDuplicatesFile();  */
+
     std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
 
@@ -96,69 +98,59 @@ void SequentialIndex::rebuild(){
 
     try {
         readHeader(indexFile, sih);
-        writeHeader(newIndexFile, sizeof(SequentialIndexHeader), INDEXFILE);
-        if (sih.next_file == INDEXFILE) {
-            this->moveReadRecord(indexFile, sih.next_pos, sir);
-        } else {
-            this->moveReadRecord(auxFile, sih.next_pos, sir);
-        }
-        physical_pos next_move;
-        physical_pos next_dup;
-        file_pos next_file;
-
-        while(sir.next_pos != -1){
-            if (sir.dup_pos != -1) {
-                physical_pos current_dup_pos = newDuplicatesFile.tellp();
-                next_dup = sir.next_pos;
-                sir.setDupPos(current_dup_pos);
-                this->moveReadRecord(duplicatesFile, next_dup, sir_dup);
-                
-                while (next_dup != -1) {
-                    physical_pos current_dup_pos = newDuplicatesFile.tellp();
-                    sir_dup.setCurrent(current_dup_pos, DUPFILE);
-                    next_dup = sir_dup.dup_pos;
-                    sir_dup.setDupPos(current_dup_pos + sizeof(SequentialIndexRecord));
-                    this->writeRecord(newDuplicatesFile, sir_dup);
-                    this->moveReadRecord(duplicatesFile, next_dup, sir_dup);
-                }
-                sir_dup.setCurrent(newDuplicatesFile.tellp(), DUPFILE);
-                sir_dup.setDupPos(-1);
-                this->writeRecord(newDuplicatesFile, sir_dup);
-            }
-            physical_pos current_pos = newIndexFile.tellp();
-            sir.setCurrent(current_pos, INDEXFILE);
-            next_move = sir.next_pos;
-            next_file = sir.next_file;
-            sir.setNext(current_pos + sizeof(SequentialIndexRecord), INDEXFILE);
-            this->writeRecord(newIndexFile, sir);
-            if (next_file == INDEXFILE) {
-                this->moveReadRecord(indexFile, next_move, sir);
+        if (sih.next_pos != -1) {
+            writeHeader(newIndexFile, sizeof(SequentialIndexHeader), INDEXFILE);
+            if (sih.next_file == INDEXFILE) {
+                this->moveReadRecord(indexFile, sih.next_pos, sir);
             } else {
-                this->moveReadRecord(auxFile, next_move, sir);
+                this->moveReadRecord(auxFile, sih.next_pos, sir);
             }
-        }
 
-        if (sir.dup_pos != -1) {
-            physical_pos current_dup_pos = newDuplicatesFile.tellp();
-            next_dup = sir.next_pos;
-            sir.setDupPos(current_dup_pos);
-            this->moveReadRecord(duplicatesFile, next_dup, sir_dup);
-            
-            while (next_dup != -1) {
-                physical_pos current_dup_pos = newDuplicatesFile.tellp();
-                sir_dup.setCurrent(current_dup_pos, DUPFILE);
-                next_dup = sir_dup.dup_pos;
-                sir_dup.setDupPos(current_dup_pos + sizeof(SequentialIndexRecord));
-                this->writeRecord(newDuplicatesFile, sir_dup);
-                this->moveReadRecord(duplicatesFile, next_dup, sir_dup);
+            physical_pos next_move;
+            physical_pos next_dup;
+            file_pos next_file;
+
+            while(true){
+                if (sir.dup_pos != -1) {
+                    physical_pos current_dup_pos = newDuplicatesFile.tellp();
+                    next_dup = sir.dup_pos;
+                    sir.setDupPos(current_dup_pos);
+                    this->moveReadRecord(duplicatesFile, next_dup, sir_dup);
+                    
+                    while (true) {
+                        physical_pos current_dup_pos = newDuplicatesFile.tellp();
+                        sir_dup.setCurrent(current_dup_pos, DUPFILE);
+                        next_dup = sir_dup.dup_pos;
+                        if (next_dup == -1) {
+                            sir_dup.setDupPos(-1);
+                        } else {
+                            sir_dup.setDupPos(current_dup_pos + sizeof(SequentialIndexRecord));
+                        }
+                        this->writeRecord(newDuplicatesFile, sir_dup);
+                        if (next_dup == -1) {break;}
+                        this->moveReadRecord(duplicatesFile, next_dup, sir_dup);
+                    }
+                }  
+                physical_pos current_pos = newIndexFile.tellp();
+                sir.setCurrent(current_pos, INDEXFILE);
+                next_move = sir.next_pos;
+                next_file = sir.next_file;
+                if (next_move == -1) {
+                    sir.setNext(-1, INDEXFILE);
+                } else {
+                    sir.setNext(current_pos + sizeof(SequentialIndexRecord), INDEXFILE);
+                }
+                this->writeRecord(newIndexFile, sir);
+                if (next_move == -1) {break;}
+                if (next_file == INDEXFILE) {
+                    this->moveReadRecord(indexFile, next_move, sir);
+                } else {
+                    this->moveReadRecord(auxFile, next_move, sir);
+                }
             }
-            sir_dup.setCurrent(newDuplicatesFile.tellp(), DUPFILE);
-            sir_dup.setDupPos(-1);
-            this->writeRecord(newDuplicatesFile, sir_dup);
+        } else {
+            writeHeader(newIndexFile, -1, INDEXFILE);
         }
-        sir.setCurrent(newIndexFile.tellp(), INDEXFILE);
-        sir.setNext(-1, INDEXFILE);
-        this->writeRecord(newIndexFile, sir);
         
     } catch (...) {
         indexFile.close();
@@ -187,6 +179,9 @@ void SequentialIndex::rebuild(){
     } catch (...) {
         throw std::runtime_error("Couldn't rename files");
     }
+
+   /*  std::cout<<"AFTER INDEX FILE"<<std::endl; // TODO: remove this "debug"
+    this->printIndexFile(); */
 }
 
 /*

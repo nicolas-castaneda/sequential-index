@@ -18,25 +18,36 @@ int main(){
     si.add(Data(2));
     si.add(Data(1));
     si.add(Data(3));
+       
     si.add(Data(3));
     si.add(Data(3));
     si.add(Data(3));
     si.add(Data(3));
+    si.add(Data(3));
+    
     si.add(Data(8));
+    
     si.add(Data(8));
-    si.add(Data(8));
-    si.add(Data(3));
-    si.add(Data(6));
+    si.add(Data(8));  
 
+    si.add(Data(9));
+    si.add(Data(9));
+
+    si.add(Data(12));
+    si.add(Data(10));
+
+    si.add(Data(11));
+
+    
     printAllFiles(si);
 
     //std::cout<<"RANGE SEARCH 3"<<std::endl;
-    Response response = si.rangeSearch(Data(1), Data(0));
+    /* Response response = si.rangeSearch(Data(1), Data(0));
 
     std::cout<<"RESPONSE"<<std::endl;
     for (auto& record : response.records) {
         std::cout<<record<<std::endl;
     }
-    std::cout<<"TIME: "<<response.query_time<<std::endl;
+    std::cout<<"TIME: "<<response.query_time<<std::endl; */
     return 0;
 }
