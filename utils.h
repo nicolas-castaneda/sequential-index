@@ -27,9 +27,17 @@ struct Data {
     bool operator<(const Data& other) const {
         return this->numero < other.numero;
     }
+    
+    bool operator<=(const Data& other) const {
+        return this->numero <= other.numero;
+    }
 
     bool operator>(const Data& other) const {
         return this->numero > other.numero;
+    }
+
+    bool operator>=(const Data& other) const {
+        return this->numero >= other.numero;
     }
 };
 
@@ -41,6 +49,7 @@ inline std::ostream& operator<<(std::ostream& stream, const Data& data){
 struct Response {
     std::vector<physical_pos> records;
     time_t query_time;
+
 
     Response(){}
 

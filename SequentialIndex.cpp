@@ -501,25 +501,29 @@ void SequentialIndex::getAllRawCurrentRecords(SequentialIndexRecord sir, std::ve
     duplicatesFile.close();
 }
 
-void SequentialIndex::searchAuxFile(Data data, BinarySearchResponse& bir, std::vector<physical_pos>& records){
+void SequentialIndex::searchAuxFile(Data data, BinarySearchResponse& bir, std::vector<physical_pos>& records, SequentialIndexRecord& sir){
     std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
     
-    SequentialIndexRecord sir;
+    //SequentialIndexRecord sir;
     try {
         if (bir.header) {
+            sir = bir.sir;
             if (bir.sih.next_file == INDEXFILE) return;            
             auxFile.seekp(bir.sih.next_pos, std::ios::beg);
         } else if (bir.location == REC_PREV){
+            sir = bir.sir_prev;
             if (bir.sir_prev.next_file == INDEXFILE) return;
             auxFile.seekp(bir.sir_prev.next_pos, std::ios::beg);
         } else if (bir.location == REC_NEXT) {
+            sir = bir.sir;
             if (bir.sir.next_file == INDEXFILE) return;
             auxFile.seekp(bir.sir.next_pos, std::ios::beg);
         }
         this->readRecord(auxFile, sir);
-        while(sir.next_file != INDEXFILE) {
+        while(data >= sir.data) {
             if (sir.data == data) { this->getAllRawCurrentRecords(sir, records); break;}
+            if (sir.next_file != INDEXFILE) { break; }
             auxFile.seekp(sir.next_pos, std::ios::beg);
             this->readRecord(auxFile, sir);
         }
@@ -539,12 +543,68 @@ Response SequentialIndex::search(Data data){
     response.startTimer();
     try {
         BinarySearchResponse bsr = this->binarySearch(indexFile, data);
+        SequentialIndexRecord sir;
         if (bsr.location == EMPTY_FILE) { response.stopTimer(); indexFile.close(); return response; 
         } else if (bsr.location == REC_CUR) {
             this->getAllRawCurrentRecords(bsr.sir, response.records);
         } else {
-            this->searchAuxFile(data, bsr, response.records);
+            this->searchAuxFile(data, bsr, response.records, sir);
         }
+    } catch (std::runtime_error) {
+        response.stopTimer();
+        indexFile.close();
+        throw std::runtime_error("Couldn't search");
+    }
+
+    response.stopTimer();
+    indexFile.close();
+    return response;
+}
+
+Response SequentialIndex::rangeSearch(Data begin, Data end){
+    Response response;
+    
+
+    std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
+    if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
+
+    response.startTimer();
+    if (begin > end) { response.stopTimer(); indexFile.close(); return response;}
+    try {
+        BinarySearchResponse bsr = this->binarySearch(indexFile, begin);
+        SequentialIndexRecord sir;
+        if (bsr.location == EMPTY_FILE) { response.stopTimer(); indexFile.close(); return response; 
+        } else if (bsr.location == REC_CUR) {
+            sir = bsr.sir;
+            this->getAllRawCurrentRecords(sir, response.records);
+        } else {
+            this->searchAuxFile(begin, bsr, response.records, sir);
+        }
+        if (sir.data <= begin) {
+            // Move to the next record
+            if (sir.next_file == INDEXFILE) {
+                if (sir.next_pos == -1) { response.stopTimer(); indexFile.close(); return response; }
+                moveReadRecord(indexFile, sir.next_pos, sir);
+            } else {
+                std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
+                if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
+                auxFile.seekp(sir.next_pos, std::ios::beg);
+                this->readRecord(auxFile, sir);
+                auxFile.close();
+            }
+        } 
+        std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
+        if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
+        while(sir.data <= end) {
+            this->getAllRawCurrentRecords(sir, response.records);
+            if (sir.next_pos == -1) { break; }
+            if (sir.next_file == INDEXFILE) {
+                moveReadRecord(indexFile, sir.next_pos, sir);
+            } else {
+                moveReadRecord(auxFile, sir.next_pos, sir);
+            }
+        }
+        auxFile.close();
     } catch (std::runtime_error) {
         response.stopTimer();
         indexFile.close();

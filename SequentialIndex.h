@@ -43,7 +43,7 @@ class SequentialIndex {
     bool validNumberRecords();
 
     void getAllRawCurrentRecords(SequentialIndexRecord sir, std::vector<physical_pos>& records);
-    void searchAuxFile(Data data, BinarySearchResponse& bir, std::vector<physical_pos>& records);
+    void searchAuxFile(Data data, BinarySearchResponse& bir, std::vector<physical_pos>& records, SequentialIndexRecord& sir);
 
     template <typename FileType = std::fstream>
     void insertDuplicate(FileType& file, SequentialIndexRecord& sir, SequentialIndexRecord& sir_dup);
