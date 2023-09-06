@@ -63,6 +63,8 @@ class SequentialIndex {
     template<typename FileType = std::fstream>
     BinarySearchResponse binarySearch(FileType& file, Data data);
 
+    Response erase(Data data, Response& response);
+
 public:
     /*
         Constructor
@@ -81,6 +83,17 @@ public:
     /*
         Query functions
     */
+
+   // Sequential deben pasar el indexFile name, el auxFile name, el duplicateFile name
+   // Pueden pasar ustedes el nombre de la tabla y el nombre del campo y ya lo concateno
+   // Para que los archivos respectivos a una tabla sean tipo nombreTabla_nombreCampo_nombreIndice_extras.bin
+   // extras por ejemplo yo uso tres files indexFile, auxFile, duplicateFile
+   // entonces los nombres de los archivos serian tipo 
+   // nombreTabla_nombreCampo_SequentialIndex_indexFile.bin
+    // nombreTabla_nombreCampo_SequentialIndex_auxFile.bin
+    // nombreTabla_nombreCampo_SequentialIndex_duplicateFile.bin
+   // pos debe ser raw position del inicio del record a insertar
+   // Response add(Data<key_type> data, physical_pos pos); 
     Response add(Data data);
     Response search(Data data);
     Response rangeSearch(Data begin, Data end);

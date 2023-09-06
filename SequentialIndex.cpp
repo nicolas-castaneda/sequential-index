@@ -469,12 +469,8 @@ Response SequentialIndex::add(Data data){
     response.stopTimer();
     indexFile.close();
 
-    if (!this->validNumberRecords()) {
-        //std::cout<<this->numberIndexRecords()<<std::endl;
-        //std::cout<<this->numberAuxRecords()<<std::endl;
-        //std::cout<<"REBUILD"<<std::endl; // TODO: remove this "debug
-        this->rebuild();
-    }
+    if (!this->validNumberRecords())    this->rebuild();
+    
     return response;
 }
 
@@ -499,8 +495,7 @@ void SequentialIndex::getAllRawCurrentRecords(SequentialIndexRecord sir, std::ve
 void SequentialIndex::searchAuxFile(Data data, BinarySearchResponse& bir, std::vector<physical_pos>& records, SequentialIndexRecord& sir){
     std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
-    
-    //SequentialIndexRecord sir;
+     
     try {
         if (bir.header) {
             sir = bir.sir;
@@ -556,7 +551,7 @@ Response SequentialIndex::search(Data data){
     return response;
 }
 
-Response SequentialIndex::rangeSearch(Data begin, Data end){
+Response SequentialIndex::rangeSearch(Data begin, Data end) {
     Response response;
     
 
@@ -611,6 +606,143 @@ Response SequentialIndex::rangeSearch(Data begin, Data end){
     return response;
 }
 
+Response SequentialIndex::erase(Data data, Response& response) {
+
+    std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
+    if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
+
+    response.startTimer();
+    try {
+        BinarySearchResponse bsr = this->binarySearch(indexFile, data);
+        if (bsr.location == EMPTY_FILE) { response.stopTimer(); indexFile.close(); return response; 
+        } else if (bsr.location == REC_CUR) {
+            if (bsr.sir.current_pos == sizeof(SequentialIndexHeader)) {
+                SequentialIndexHeader sih;
+                this->readHeader(indexFile, sih);
+                if (sih.next_file == INDEXFILE) {
+                    sih.next_file = bsr.sir.next_file;
+                    sih.next_pos = bsr.sir.next_pos;
+
+                    bsr.sir.next_file = -1;
+                    bsr.sir.next_pos = -1;
+
+                    this->writeHeader(indexFile, sih.next_pos, sih.next_file);
+                    this->moveWriteRecord(indexFile, bsr.sir.current_pos, bsr.sir);
+                }
+                response.records.push_back(bsr.sir.raw_pos);
+                response.stopTimer(); 
+                indexFile.close();
+                return response;
+            } else if (bsr.sir_prev.next_file == INDEXFILE) {
+                bsr.sir_prev.setNext(bsr.sir.next_pos, bsr.sir.next_file);
+                bsr.sir.setNext(-1, INDEXFILE);
+
+                this->moveWriteRecord(indexFile, bsr.sir_prev.current_pos, bsr.sir_prev);
+                this->moveWriteRecord(indexFile, bsr.sir.current_pos, bsr.sir);
+
+                response.records.push_back(bsr.sir.raw_pos);
+                response.stopTimer();
+                indexFile.close();
+                return response;
+            }
+        } else {
+            std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
+            SequentialIndexRecord sir_cur;
+            SequentialIndexRecord sir_prev;
+            // Record to delete is not in files
+            if (
+                (bsr.header && bsr.sih.next_file == INDEXFILE) || 
+                (bsr.location == REC_PREV && bsr.sir_prev.next_file == INDEXFILE) ||
+                (bsr.location == REC_NEXT && bsr.sir.next_file == INDEXFILE) ||
+                (bsr.header && bsr.sih.next_pos == -1) ||
+                (bsr.location == REC_PREV && bsr.sir_prev.next_pos == -1) ||
+                (bsr.location == REC_NEXT && bsr.sir.next_pos == -1)
+            ) {
+                response.stopTimer();
+                indexFile.close();
+                auxFile.close();
+                return response;
+            }
+            if (bsr.header) {
+
+                this->moveReadRecord(indexFile, bsr.sih.next_pos, sir_cur);
+                if (sir_cur.data == data) {
+                    bsr.sih.next_pos = sir_cur.next_pos;
+                    bsr.sih.next_file = sir_cur.next_file;
+                    sir_cur.setNext(-1, INDEXFILE);
+                    this->writeHeader(indexFile, bsr.sih.next_pos, bsr.sih.next_file);
+                    this->moveWriteRecord(indexFile, sir_cur.current_pos, sir_cur);
+                    auxFile.close();
+                    response.stopTimer();
+                    indexFile.close();
+                    return response;
+                } else {
+                    if (sir_cur.next_file == INDEXFILE || sir_cur.next_pos == -1 || sir_cur.data > data) {
+                        response.stopTimer();
+                        indexFile.close();
+                        auxFile.close();
+                        return response;
+                    } else {
+                        sir_prev = sir_cur;
+                        this->moveReadRecord(auxFile, sir_cur.next_pos, sir_cur);
+                    }
+                }
+                
+            } else if (bsr.location == REC_PREV) {
+                sir_prev = bsr.sir_prev;
+                this->moveReadRecord(auxFile, sir_prev.next_pos, sir_cur);
+            } else if (bsr.location == REC_NEXT) {
+                                                std::cout<<"ACA"<<std::endl;
+                sir_prev = bsr.sir;
+                this->moveReadRecord(auxFile, sir_cur.next_pos, sir_cur);
+            }
+            std::cout<<"SIR_PREV: "<<sir_prev<<std::endl;
+            std::cout<<"SIR_CUR: "<<sir_cur<<std::endl;
+            while(true) {
+                if (sir_cur.data == data) {
+                    sir_prev.setNext(sir_cur.next_pos, sir_cur.next_file);
+                    sir_cur.setNext(-1, INDEXFILE);
+
+                    if (sir_prev.current_file == INDEXFILE) {
+                        this->moveWriteRecord(indexFile, sir_prev.current_pos, sir_prev);
+                    } else {
+                        this->moveWriteRecord(auxFile, sir_prev.current_pos, sir_prev);
+                    }
+                    this->moveWriteRecord(auxFile, sir_cur.current_pos, sir_cur);
+                    break;
+                }
+                if (sir_cur.next_file == INDEXFILE || sir_cur.next_pos == -1 || sir_cur.data > data) { 
+                    response.stopTimer();
+                    indexFile.close();
+                    auxFile.close();
+                    return response;
+                }
+                sir_prev = sir_cur;
+                this->moveReadRecord(auxFile, sir_cur.next_pos, sir_cur);
+
+            }
+            response.records.push_back(sir_cur.raw_pos);
+        }   
+    } catch (std::runtime_error) {
+        response.stopTimer();
+        indexFile.close();
+        throw std::runtime_error("Couldn't search");
+    }
+
+    response.stopTimer();
+    indexFile.close();
+    return response;
+}
+
+
+Response SequentialIndex::erase(Data data) {
+    Response response;
+    this->erase(data, response);
+    if (response.records.size() != 0) {
+        this->rebuild();
+    }
+    return response;
+}
 
 /*
     Print files sequentially

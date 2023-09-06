@@ -24,6 +24,8 @@ int main(){
     si.add(Data(3));
     si.add(Data(3));
     si.add(Data(3));
+
+    si.erase(Data(3));
     
     si.add(Data(8));
     
@@ -33,11 +35,14 @@ int main(){
     si.add(Data(9));
     si.add(Data(9));
 
+    si.erase(Data(9));
+
     si.add(Data(12));
     si.add(Data(10));
 
     si.add(Data(11));
-
+    
+    si.erase(Data(8));
     
     printAllFiles(si);
 
