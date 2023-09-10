@@ -5,12 +5,6 @@
 
 template <typename KEY_TYPE>
 void SequentialIndex<KEY_TYPE>::rebuild(){
-    /* std::cout<<"REBUILD INDEX FILE"<<std::endl; // TODO: remove this "debug"
-    this->printIndexFile();
-    std::cout<<"REBUILD AUX FILE"<<std::endl; // TODO: remove this "debug"
-    this->printAuxFile();
-    std::cout<<"REBUILD DUPLICATES FILE"<<std::endl; // TODO: remove this "debug"
-    this->printDuplicatesFile();  */
 
     std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
@@ -120,8 +114,6 @@ void SequentialIndex<KEY_TYPE>::rebuild(){
         throw std::runtime_error("Couldn't rename files");
     }
 
-   /*  std::cout<<"AFTER INDEX FILE"<<std::endl; // TODO: remove this "debug"
-    this->printIndexFile(); */
 }
 
 /*
@@ -526,7 +518,6 @@ Response SequentialIndex<KEY_TYPE>::erase(Data<KEY_TYPE> data, Response& respons
     try {
         BinarySearchResponse bsr = this->binarySearch(indexFile, data);
 
-        std::cout<<"bsr.location: "<<bsr.location<<std::endl;
         if (bsr.location == EMPTY_FILE) { response.stopTimer(); indexFile.close(); return response; }
         else if (bsr.location == REC_CUR) {
             if (bsr.sir.current_pos == sizeof(SequentialIndexHeader)) {
@@ -643,7 +634,7 @@ Response SequentialIndex<KEY_TYPE>::erase(Data<KEY_TYPE> data, Response& respons
                 this->moveReadRecord(auxFile, sir_prev.next_pos, sir_cur);
             } else if (bsr.location == REC_NEXT) {
                 sir_prev = bsr.sir;
-                this->moveReadRecord(auxFile, sir_cur.next_pos, sir_cur);
+                this->moveReadRecord(auxFile, sir_prev.next_pos, sir_cur);
             }
             while(true) {
                 if (sir_cur.data == data) {

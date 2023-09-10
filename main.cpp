@@ -1,4 +1,5 @@
 #include "sequential_index.hpp"
+#include "random"
 
 template<typename KEY_TYPE>
 void printAllFiles(SequentialIndex<KEY_TYPE>& si){
@@ -22,55 +23,33 @@ void printResponse(Response& response){
     std::cout<<"-------"<<std::endl;
 }
 
+template<typename KEY_TYPE>
+void addNRandomRecord(SequentialIndex<KEY_TYPE>& si, int N, KEY_TYPE min = 0, KEY_TYPE max = 100){
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(min, max);
+
+    for(double i = 0; i < N; i++){
+        si.add(Data(i), 0);
+    }
+}
+
 int main(){
     std::string table_name = "t1";
     std::string attribute_name = "attr1";
     bool PK = false;
 
-    using attribute_type = int;
+    using attribute_type = double;
 
     SequentialIndex<attribute_type> si(table_name, attribute_name, PK);
 
-    std::cout<<"ADD 2"<<std::endl;
-    si.add(Data(2), 2);
 
-    si.add(Data(1), 1);
+    addNRandomRecord(si, 199000);
     
-    si.add(Data(3), 3);
-    
-    si.add(Data(3), 3);
+    /* printAllFiles(si); */
 
-    si.add(Data(3), 3);
+    /*  Response response = si.rangeSearch(Data(1.0), Data(10.5));
 
-
-    si.add(Data(3), 3);
-    si.add(Data(3), 3);
-    si.add(Data(3), 3);
-
-    si.erase(Data(3));
-/*    
-    si.add(Data(8), 8);
-    
-    si.add(Data(8), 8);
-    si.add(Data(8), 8);  
-
-    si.add(Data(9), 9);
-    si.add(Data(9), 9);
-
-    si.erase(Data(9));
-
-    si.add(Data(12), 12);
-    si.add(Data(10), 10);
-
-    si.add(Data(11), 11);
-    
-    si.erase(Data(8)); */
-    
-    printAllFiles(si); 
-
-    std::cout<<"RANGE SEARCH 3"<<std::endl;
-    Response response = si.rangeSearch(Data(1), Data(3));
-
-    printResponse(response);
+    printResponse(response); */
     return 0;
 }
