@@ -19,7 +19,7 @@ void printResponse(Response& response){
     for (auto& record : response.records) {
         std::cout<<record<<std::endl;
     }
-    std::cout<<"TIME: "<<response.query_time<<std::endl;
+    std::cout<<"TIME: "<<response.query_time.count()<<" ms"<<std::endl;
     std::cout<<"-------"<<std::endl;
 }
 
@@ -44,12 +44,12 @@ int main(){
     SequentialIndex<attribute_type> si(table_name, attribute_name, PK);
 
 
-    addNRandomRecord(si, 199000);
+    addNRandomRecord(si, 1000);
     
-    /* printAllFiles(si); */
+    Response response = si.rangeSearch(Data(100.0), Data(500.5));
 
-    /*  Response response = si.rangeSearch(Data(1.0), Data(10.5));
+    si.erase(Data(100.0));
 
-    printResponse(response); */
+    printResponse(response);
     return 0;
 }

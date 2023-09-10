@@ -5,17 +5,20 @@
 
 struct Response {
     std::vector<physical_pos> records;
-    time_t query_time;
+    std::chrono::milliseconds query_time;
 
     Response(){}
 
     void startTimer() {
-        this->query_time = time(NULL);
+        start_time = std::chrono::high_resolution_clock::now();
     }
 
     void stopTimer() {
-        this->query_time = time(NULL) - this->query_time;
+        auto end_time = std::chrono::high_resolution_clock::now();
+        query_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
     }
+private:
+    std::chrono::high_resolution_clock::time_point start_time;
 };
 
 #endif // RESPONSE_HPP

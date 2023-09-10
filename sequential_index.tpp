@@ -329,7 +329,7 @@ void SequentialIndex<KEY_TYPE>::insertAux(FileType& indexFile, SequentialIndexRe
 }
 
 template <typename KEY_TYPE>
-Response SequentialIndex<KEY_TYPE>::add(Data<KEY_TYPE> data, physical_pos raw_pos){
+Response SequentialIndex<KEY_TYPE>::add(Data<KEY_TYPE> data, physical_pos raw_pos, bool rebuild){
     Response response;
     response.startTimer();
 
@@ -357,13 +357,13 @@ Response SequentialIndex<KEY_TYPE>::add(Data<KEY_TYPE> data, physical_pos raw_po
         } else if (bsr.header ) {
             // Move to aux file from header
             this->insertAux(indexFile, bsr.sir_prev, sir, bsr);
-        } else if (bsr.location == END_OF_FILE && bsr.sir_prev.next_file == INDEXFILE) {
+        } else if (bsr.location == REC_PREV && bsr.sir_prev.next_file == INDEXFILE) {
             // Insert between prev and cur
             this->insertAfterRecord(indexFile, bsr.sir_prev, sir, bsr.sih, bsr.header);
-        } else if (bsr.location == END_OF_FILE) {
+        } else if (bsr.location == REC_PREV) {
             // Move to aux file from prev
             this->insertAux(indexFile, bsr.sir_prev, sir, bsr);
-        } else if (bsr.location == 0) {
+        } else if (bsr.location == REC_CUR) {
             // Insert duplicate
             if (this->PK) throw std::runtime_error("Couldn't add duplicate in PK");
             this->insertDuplicate(indexFile, bsr.sir, sir);
@@ -387,8 +387,48 @@ Response SequentialIndex<KEY_TYPE>::add(Data<KEY_TYPE> data, physical_pos raw_po
     response.stopTimer();
     indexFile.close();
 
-    if (!this->validNumberRecords())    this->rebuild();
     
+    if (rebuild && !this->validNumberRecords()) { this->rebuild(); }
+    
+    return response;
+}
+
+template <typename KEY_TYPE>
+Response SequentialIndex<KEY_TYPE>::add(Data<KEY_TYPE> data, physical_pos raw_pos){
+    Response response;
+    try {
+        response = this->add(data, raw_pos, true);
+    } catch (...) {
+        throw std::runtime_error("Couldn't add");
+    }
+    return response;
+};
+
+template <typename KEY_TYPE>
+Response SequentialIndex<KEY_TYPE>::addNotRebuild(Data<KEY_TYPE> data, physical_pos raw_pos) {
+    Response response;
+    try {
+        response = this->add(data, raw_pos, false);
+    } catch (...) {
+        throw std::runtime_error("Couldn't add not rebuild");
+    }
+    return response;
+}
+
+template <typename KEY_TYPE>
+Response SequentialIndex<KEY_TYPE>::loadRecords(std::vector<std::pair<Data<KEY_TYPE>, physical_pos>>& records) {
+    Response response;
+    response.startTimer();
+    try {
+        for (auto& record : records) {
+            this->addNotRebuild(record.first, record.second);
+        }
+    } catch (...) {
+        response.stopTimer();
+        throw std::runtime_error("Couldn't load records");
+    }
+    response.stopTimer();
+    this->rebuild();
     return response;
 }
 

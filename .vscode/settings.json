@@ -60,6 +60,8 @@
         "numbers": "cpp",
         "optional": "cpp",
         "sstream": "cpp",
-        "*.tpp": "cpp"
+        "*.tpp": "cpp",
+        "chrono": "cpp",
+        "ratio": "cpp"
     }
 }

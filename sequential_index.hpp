@@ -16,7 +16,6 @@ class SequentialIndex: public Index<KEY_TYPE> {
     void createFile();
     bool fileExists();
 
-    void rebuild();
     bool validNumberRecords();
 
     void searchAuxFile(Data<KEY_TYPE> data, BinarySearchResponse<KEY_TYPE>& bir, std::vector<physical_pos>& records, SequentialIndexRecord<KEY_TYPE>& sir);
@@ -29,6 +28,7 @@ class SequentialIndex: public Index<KEY_TYPE> {
     template <typename FileType = std::fstream>
     void insertAfterRecord(FileType& file, SequentialIndexRecord<KEY_TYPE>& sir_prev, SequentialIndexRecord<KEY_TYPE>& sir, SequentialIndexHeader& sih, bool header);
 
+    Response add(Data<KEY_TYPE> data, physical_pos raw_pos, bool rebuild);
     Response erase(Data<KEY_TYPE> data, Response& response);
     
     /*
@@ -67,6 +67,11 @@ public:
     Response search(Data<KEY_TYPE> data) override;
     Response rangeSearch(Data<KEY_TYPE> begin, Data<KEY_TYPE> end) override;
     Response erase(Data<KEY_TYPE> data) override;
+
+    Response addNotRebuild(Data<KEY_TYPE> data, physical_pos raw_pos);
+
+    Response loadRecords(std::vector<std::pair<Data<KEY_TYPE>, physical_pos>>& records);
+    void rebuild();
 
     /*
         Print files sequentially
