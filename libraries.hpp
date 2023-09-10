@@ -1,11 +1,11 @@
-#ifndef LIBRARIES_H
-#define LIBRARIES_H
+#ifndef LIBRARIES_HPP
+#define LIBRARIES_HPP
 
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <cmath>
 #include <vector>
 #include <ctime>
-#include <cmath>
 
-#endif //LIBRARIES_H
+#endif //LIBRARIES_HPP

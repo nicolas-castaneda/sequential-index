@@ -59,6 +59,7 @@
         "string_view": "cpp",
         "numbers": "cpp",
         "optional": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "*.tpp": "cpp"
     }
 }

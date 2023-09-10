@@ -13,8 +13,8 @@ CXXFLAGS = -std=c++17
 INCLUDE_DIRS = -I.
 
 # Source files and output executable
-SRCS = main.cpp SequentialIndex.cpp
-HEADERS = SequentialIndex.h SequentialIndexHeader.h SequentialIndexRecord.h BinarySearchResponse.h utils.h libraries.h
+SRCS = main.cpp
+HEADERS = sequential_index.hpp data.hpp index.hpp libraries.hpp record.hpp response.hpp sequential_index_header.hpp sequential_index_utils.hpp sequential_index_record.hpp binary_search_response.hpp utils.hpp
 OUTPUT = program$(EXECUTABLE_EXTENSION)
 
 # Object files (automatically generated)

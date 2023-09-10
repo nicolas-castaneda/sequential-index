@@ -1,72 +1,10 @@
-#ifndef SEQUENTIALINDEX_CPP
-#define SEQUENTIALINDEX_CPP
+#ifndef SEQUENTIAL_INDEX_TPP
+#define SEQUENTIAL_INDEX_TPP
 
-#include "SequentialIndex.h"
+#include "sequential_index.hpp"
 
-/*
-    Read and write a record from a sequential File
-*/
-template<typename FileType = std::fstream>
-void SequentialIndex::writeHeader(FileType& indexFile, physical_pos next_pos, file_pos next_file){
-    try {
-        indexFile.seekp(0, std::ios::beg);
-        SequentialIndexHeader sih(next_pos, next_file);
-        indexFile.write(reinterpret_cast<char*> (&sih), sizeof(SequentialIndexHeader));
-    } catch (...) {
-        throw std::runtime_error("Couldn't write header");
-    }
-}
-
-template<typename FileType = std::fstream>
-void SequentialIndex::readHeader(FileType& indexFile, SequentialIndexHeader& sih){
-    try {
-        indexFile.seekp(0, std::ios::beg);
-        indexFile.read(reinterpret_cast<char*> (&sih), sizeof(SequentialIndexHeader));
-    } catch (...) {
-        throw std::runtime_error("Couldn't read header");
-    }
-    
-}
-
-template<typename FileType = std::fstream>
-void SequentialIndex::readRecord(FileType& file, SequentialIndexRecord& sir){
-    try {
-        file.read(reinterpret_cast<char*> (&sir), sizeof(SequentialIndexRecord));
-    } catch (...) {
-        throw std::runtime_error("Couldn't read record");
-    }
-}
-
-template<typename FileType = std::fstream>
-void SequentialIndex::writeRecord(FileType& file, SequentialIndexRecord& sir){
-    try {
-        file.write(reinterpret_cast<char*> (&sir), sizeof(SequentialIndexRecord));
-    } catch (...) {
-        throw std::runtime_error("Couldn't write record");
-    }
-}
-
-template<typename FileType = std::fstream>
-    void SequentialIndex::moveReadRecord(FileType& file, physical_pos& pos, SequentialIndexRecord& sir){
-    try {
-        file.seekp(pos, std::ios::beg);
-        file.read(reinterpret_cast<char*> (&sir), sizeof(SequentialIndexRecord));
-    } catch (...) {
-        throw std::runtime_error("Couldn't move read record");
-    }
-}
-
-template<typename FileType = std::fstream>
-void SequentialIndex::moveWriteRecord(FileType& file, physical_pos& pos,SequentialIndexRecord& sir){
-    try {
-        file.seekp(pos, std::ios::beg);
-        file.write(reinterpret_cast<char*> (&sir), sizeof(SequentialIndexRecord));
-    } catch (...) {
-        throw std::runtime_error("Couldn't move write record");
-    }
-}
-
-void SequentialIndex::rebuild(){
+template <typename KEY_TYPE>
+void SequentialIndex<KEY_TYPE>::rebuild(){
     /* std::cout<<"REBUILD INDEX FILE"<<std::endl; // TODO: remove this "debug"
     this->printIndexFile();
     std::cout<<"REBUILD AUX FILE"<<std::endl; // TODO: remove this "debug"
@@ -93,13 +31,14 @@ void SequentialIndex::rebuild(){
     if (!newDuplicatesFile.is_open()) throw std::runtime_error("Couldn't create newDuplicatesFile");
 
     SequentialIndexHeader sih;
-    SequentialIndexRecord sir;
-    SequentialIndexRecord sir_dup;
+    SequentialIndexRecord<KEY_TYPE> sir;
+    SequentialIndexRecord<KEY_TYPE> sir_dup;
 
     try {
-        readHeader(indexFile, sih);
-        if (sih.next_pos != -1) {
-            writeHeader(newIndexFile, sizeof(SequentialIndexHeader), INDEXFILE);
+        this->readHeader(indexFile, sih);
+        if (sih.next_pos != END_OF_FILE) {
+            SequentialIndexHeader new_sih(sizeof(SequentialIndexHeader), INDEXFILE);
+            this->writeHeader(newIndexFile, new_sih);
             if (sih.next_file == INDEXFILE) {
                 this->moveReadRecord(indexFile, sih.next_pos, sir);
             } else {
@@ -111,7 +50,7 @@ void SequentialIndex::rebuild(){
             file_pos next_file;
 
             while(true){
-                if (sir.dup_pos != -1) {
+                if (sir.dup_pos != END_OF_FILE) {
                     physical_pos current_dup_pos = newDuplicatesFile.tellp();
                     next_dup = sir.dup_pos;
                     sir.setDupPos(current_dup_pos);
@@ -121,13 +60,13 @@ void SequentialIndex::rebuild(){
                         physical_pos current_dup_pos = newDuplicatesFile.tellp();
                         sir_dup.setCurrent(current_dup_pos, DUPFILE);
                         next_dup = sir_dup.dup_pos;
-                        if (next_dup == -1) {
-                            sir_dup.setDupPos(-1);
+                        if (next_dup == END_OF_FILE) {
+                            sir_dup.setDupPos(END_OF_FILE);
                         } else {
-                            sir_dup.setDupPos(current_dup_pos + sizeof(SequentialIndexRecord));
+                            sir_dup.setDupPos(current_dup_pos + sizeof(SequentialIndexRecord<KEY_TYPE>));
                         }
                         this->writeRecord(newDuplicatesFile, sir_dup);
-                        if (next_dup == -1) {break;}
+                        if (next_dup == END_OF_FILE) {break;}
                         this->moveReadRecord(duplicatesFile, next_dup, sir_dup);
                     }
                 }  
@@ -135,13 +74,13 @@ void SequentialIndex::rebuild(){
                 sir.setCurrent(current_pos, INDEXFILE);
                 next_move = sir.next_pos;
                 next_file = sir.next_file;
-                if (next_move == -1) {
-                    sir.setNext(-1, INDEXFILE);
+                if (next_move == END_OF_FILE) {
+                    sir.setNext(END_OF_FILE, INDEXFILE);
                 } else {
-                    sir.setNext(current_pos + sizeof(SequentialIndexRecord), INDEXFILE);
+                    sir.setNext(current_pos + sizeof(SequentialIndexRecord<KEY_TYPE>), INDEXFILE);
                 }
                 this->writeRecord(newIndexFile, sir);
-                if (next_move == -1) {break;}
+                if (next_move == END_OF_FILE) {break;}
                 if (next_file == INDEXFILE) {
                     this->moveReadRecord(indexFile, next_move, sir);
                 } else {
@@ -149,7 +88,8 @@ void SequentialIndex::rebuild(){
                 }
             }
         } else {
-            writeHeader(newIndexFile, -1, INDEXFILE);
+            SequentialIndexHeader new_sih(END_OF_FILE, INDEXFILE);
+            this->writeHeader(newIndexFile, new_sih);
         }
         
     } catch (...) {
@@ -187,10 +127,13 @@ void SequentialIndex::rebuild(){
 /*
     Helper functions 
 */
-void SequentialIndex::createFile(){
+
+template <typename KEY_TYPE>
+void SequentialIndex<KEY_TYPE>::createFile(){
         std::ofstream indexFile(this->indexFilename, std::ios::app | std::ios::binary);
         if(!indexFile.is_open()) throw std::runtime_error("Couldn't create indexFile");
-        writeHeader<decltype(indexFile)> (indexFile, -1, INDEXFILE);
+        SequentialIndexHeader new_sih(END_OF_FILE, INDEXFILE);
+        this->writeHeader(indexFile, new_sih);
         indexFile.close();
 
         std::ofstream auxFile(this->auxFilename, std::ios::app | std::ios::binary);
@@ -202,7 +145,8 @@ void SequentialIndex::createFile(){
         duplicatesFile.close();
     }
 
-bool SequentialIndex::fileExists(){
+template <typename KEY_TYPE>
+bool SequentialIndex<KEY_TYPE>::fileExists(){
         std::ifstream file(this->indexFilename);
         bool exists = file.good();
         file.close();
@@ -212,11 +156,13 @@ bool SequentialIndex::fileExists(){
 /*
     Binary search in files
 */
-template<typename FileType = std::fstream>
-BinarySearchResponse SequentialIndex::binarySearch(FileType& file, Data data){
-    BinarySearchResponse bsr;
+
+template <typename KEY_TYPE>
+template <typename FileType>
+BinarySearchResponse<KEY_TYPE> SequentialIndex<KEY_TYPE>::binarySearch(FileType& file, Data<KEY_TYPE> data){
+    BinarySearchResponse<KEY_TYPE> bsr;
     size_t header_offset = sizeof(SequentialIndexHeader);
-    size_t sequentialIndexSize = sizeof(SequentialIndexRecord);
+    size_t sequentialIndexSize = sizeof(SequentialIndexRecord<KEY_TYPE>);
     
     try {
         physical_pos logical_left = 0;
@@ -228,7 +174,7 @@ BinarySearchResponse SequentialIndex::binarySearch(FileType& file, Data data){
         file.seekp(0, std::ios::beg);
 
         SequentialIndexHeader sih;
-        SequentialIndexRecord sir_prev, sir_cur, sir_next;
+        SequentialIndexRecord<KEY_TYPE> sir_prev, sir_cur, sir_next;
 
         while (logical_left <= logical_right) {
             physical_pos logical_mid = (logical_left + logical_right) / 2;
@@ -275,25 +221,8 @@ BinarySearchResponse SequentialIndex::binarySearch(FileType& file, Data data){
     Query functions
 */
 
-void SequentialIndex::insertDuplicateFile(SequentialIndexRecord& sir){
-    std::fstream duplicatesFile(this->duplicatesFilename, std::ios::in | std::ios::out | std::ios::binary);
-    if (!duplicatesFile.is_open()) throw std::runtime_error("Couldn't open duplicatesFile");
-
-    duplicatesFile.seekp(0, std::ios::end);
-    physical_pos physical_pos = duplicatesFile.tellp();
-
-    sir.setCurrent(physical_pos, DUPFILE);
-
-    try {
-        this->writeRecord(duplicatesFile, sir);
-    } catch (...) {
-        duplicatesFile.close();
-        throw std::runtime_error("Couldn't insert duplicate");
-    }
-    duplicatesFile.close();
-}
-
-void SequentialIndex::insertAuxFile(SequentialIndexRecord& sir){
+template <typename KEY_TYPE>
+void SequentialIndex<KEY_TYPE>::insertAuxFile(SequentialIndexRecord<KEY_TYPE>& sir){
     std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
 
@@ -312,13 +241,15 @@ void SequentialIndex::insertAuxFile(SequentialIndexRecord& sir){
     auxFile.close();
 };
 
-template <typename FileType = std::fstream>
-void SequentialIndex::insertAfterRecord(FileType& file, SequentialIndexRecord& sir_prev, SequentialIndexRecord& sir, SequentialIndexHeader& sih, bool header){
+template <typename KEY_TYPE>
+template <typename FileType>
+void SequentialIndex<KEY_TYPE>::insertAfterRecord(FileType& file, SequentialIndexRecord<KEY_TYPE>& sir_prev, SequentialIndexRecord<KEY_TYPE>& sir, SequentialIndexHeader& sih, bool header){
     try {
         if (header) {
             sir.setNext(sih.next_pos, sih.next_file);
             this->insertAuxFile(sir);
-            this->writeHeader(file, sir.current_pos, sir.current_file);
+            SequentialIndexHeader new_sih(sir.current_pos, sir.current_file);
+            this->writeHeader(file, new_sih);
         } else {
             sir.setNext(sir_prev.next_pos, sir_prev.next_file);
             this->insertAuxFile(sir);
@@ -331,25 +262,14 @@ void SequentialIndex::insertAfterRecord(FileType& file, SequentialIndexRecord& s
     }
 }
 
-template <typename FileType = std::fstream>
-void SequentialIndex::insertDuplicate(FileType& file, SequentialIndexRecord& sir, SequentialIndexRecord& sir_dup){
-    try {
-        sir_dup.setDupPos(sir.dup_pos);
-        this->insertDuplicateFile(sir_dup);
-        sir.setDupPos(sir_dup.current_pos);
-        this->moveWriteRecord(file, sir.current_pos, sir);
-    } catch (...) {
-        throw std::runtime_error("Couldn't insert duplicate");
-    }
-}
-
-template <typename FileType = std::fstream>
-void SequentialIndex::insertAux(FileType& indexFile, SequentialIndexRecord& sir_init, SequentialIndexRecord& sir, BinarySearchResponse& bsr){
+template <typename KEY_TYPE>
+template <typename FileType>
+void SequentialIndex<KEY_TYPE>::insertAux(FileType& indexFile, SequentialIndexRecord<KEY_TYPE>& sir_init, SequentialIndexRecord<KEY_TYPE>& sir, BinarySearchResponse<KEY_TYPE>& bsr){
     std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
 
-    SequentialIndexRecord sir_prev = sir_init;
-    SequentialIndexRecord sir_cur;
+    SequentialIndexRecord<KEY_TYPE> sir_prev = sir_init;
+    SequentialIndexRecord<KEY_TYPE> sir_cur;
     
     try {
         if (bsr.header) {
@@ -366,6 +286,7 @@ void SequentialIndex::insertAux(FileType& indexFile, SequentialIndexRecord& sir_
                 this->insertAfterRecord(auxFile, sir_init, sir, bsr.sih, bsr.header);
                 inserted = true;
             } else if (sir.data == sir_cur.data) {
+                if (this->PK) throw std::runtime_error("Couldn't add duplicate in PK");
                 this->insertDuplicate(auxFile, sir_cur, sir);
                 inserted = true;
             } else if (sir_cur.next_file == INDEXFILE) {
@@ -384,6 +305,7 @@ void SequentialIndex::insertAux(FileType& indexFile, SequentialIndexRecord& sir_
         if (!inserted) {
             while (sir_cur.next_file != INDEXFILE) {
                 if (sir_cur.data == sir.data) { 
+                    if (this->PK) throw std::runtime_error("Couldn't add duplicate in PK");
                     this->insertDuplicate(auxFile, sir_cur, sir);
                     break;
                 }
@@ -397,6 +319,7 @@ void SequentialIndex::insertAux(FileType& indexFile, SequentialIndexRecord& sir_
 
             if (sir_cur.next_file == INDEXFILE) {
                 if (sir_cur.data == sir.data) { 
+                    if (this->PK) throw std::runtime_error("Couldn't add duplicate in PK");
                     this->insertDuplicate(auxFile, sir_cur, sir);
                 } else if (sir_cur.data < sir.data) {
                     this->insertAfterRecord(auxFile, sir_cur, sir, bsr.sih, bsr.header);
@@ -413,25 +336,27 @@ void SequentialIndex::insertAux(FileType& indexFile, SequentialIndexRecord& sir_
     auxFile.close();
 }
 
-Response SequentialIndex::add(Data data){
+template <typename KEY_TYPE>
+Response SequentialIndex<KEY_TYPE>::add(Data<KEY_TYPE> data, physical_pos raw_pos){
     Response response;
     response.startTimer();
 
     std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
 
-    SequentialIndexRecord sir;
+    SequentialIndexRecord<KEY_TYPE> sir;
     sir.setData(data);
-    sir.setRawPos(data.numero);
-    sir.setDupPos(-1);
+    sir.setRawPos(raw_pos);
+    sir.setDupPos(END_OF_FILE);
 
     try {
         BinarySearchResponse bsr = this->binarySearch(indexFile, data);
         if (bsr.location == EMPTY_FILE) { 
             // Insert as first record
             sir.setCurrent(sizeof(SequentialIndexHeader), INDEXFILE);
-            sir.setNext(-1, INDEXFILE);
-            this->writeHeader(indexFile, sizeof(SequentialIndexHeader), INDEXFILE); 
+            sir.setNext(END_OF_FILE, INDEXFILE);
+            SequentialIndexHeader new_sih(sizeof(SequentialIndexHeader), INDEXFILE);
+            this->writeHeader(indexFile, new_sih); 
             this->writeRecord(indexFile, sir);
             response.records.push_back(sir.raw_pos);
         } else if (bsr.header && bsr.sih.next_file == INDEXFILE) {
@@ -440,14 +365,15 @@ Response SequentialIndex::add(Data data){
         } else if (bsr.header ) {
             // Move to aux file from header
             this->insertAux(indexFile, bsr.sir_prev, sir, bsr);
-        } else if (bsr.location == -1 && bsr.sir_prev.next_file == INDEXFILE) {
+        } else if (bsr.location == END_OF_FILE && bsr.sir_prev.next_file == INDEXFILE) {
             // Insert between prev and cur
             this->insertAfterRecord(indexFile, bsr.sir_prev, sir, bsr.sih, bsr.header);
-        } else if (bsr.location == -1) {
+        } else if (bsr.location == END_OF_FILE) {
             // Move to aux file from prev
             this->insertAux(indexFile, bsr.sir_prev, sir, bsr);
         } else if (bsr.location == 0) {
             // Insert duplicate
+            if (this->PK) throw std::runtime_error("Couldn't add duplicate in PK");
             this->insertDuplicate(indexFile, bsr.sir, sir);
         } else if (bsr.sir.next_file == INDEXFILE) {
             // Insert between cur and next
@@ -474,28 +400,11 @@ Response SequentialIndex::add(Data data){
     return response;
 }
 
-void SequentialIndex::getAllRawCurrentRecords(SequentialIndexRecord sir, std::vector<physical_pos>& records){
-    std::fstream duplicatesFile(this->duplicatesFilename, std::ios::in | std::ios::out | std::ios::binary);
-    if (!duplicatesFile.is_open()) throw std::runtime_error("Couldn't open duplicatesFile");
-
-    try {
-        records.push_back(sir.raw_pos);
-        while(sir.dup_pos != -1) {
-            duplicatesFile.seekp(sir.dup_pos, std::ios::beg);
-            this->readRecord(duplicatesFile, sir);
-            records.push_back(sir.raw_pos);
-        }
-    } catch (...) {
-        duplicatesFile.close();
-        throw std::runtime_error("Couldn't get all raw current records");
-    }
-    duplicatesFile.close();
-}
-
-void SequentialIndex::searchAuxFile(Data data, BinarySearchResponse& bir, std::vector<physical_pos>& records, SequentialIndexRecord& sir){
+template <typename KEY_TYPE>
+void SequentialIndex<KEY_TYPE>::searchAuxFile(Data<KEY_TYPE> data, BinarySearchResponse<KEY_TYPE>& bir, std::vector<physical_pos>& records, SequentialIndexRecord<KEY_TYPE>& sir){
     std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
-     
+    
     try {
         if (bir.header) {
             sir = bir.sir;
@@ -524,7 +433,8 @@ void SequentialIndex::searchAuxFile(Data data, BinarySearchResponse& bir, std::v
     auxFile.close();
 }
 
-Response SequentialIndex::search(Data data){
+template <typename KEY_TYPE>
+Response SequentialIndex<KEY_TYPE>::search(Data<KEY_TYPE> data){
     Response response;
 
     std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
@@ -532,8 +442,8 @@ Response SequentialIndex::search(Data data){
 
     response.startTimer();
     try {
-        BinarySearchResponse bsr = this->binarySearch(indexFile, data);
-        SequentialIndexRecord sir;
+        BinarySearchResponse<KEY_TYPE> bsr = this->binarySearch(indexFile, data);
+        SequentialIndexRecord<KEY_TYPE> sir;
         if (bsr.location == EMPTY_FILE) { response.stopTimer(); indexFile.close(); return response; 
         } else if (bsr.location == REC_CUR) {
             this->getAllRawCurrentRecords(bsr.sir, response.records);
@@ -551,9 +461,9 @@ Response SequentialIndex::search(Data data){
     return response;
 }
 
-Response SequentialIndex::rangeSearch(Data begin, Data end) {
+template <typename KEY_TYPE>
+Response SequentialIndex<KEY_TYPE>::rangeSearch(Data<KEY_TYPE> begin, Data<KEY_TYPE> end) {
     Response response;
-    
 
     std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
@@ -561,8 +471,8 @@ Response SequentialIndex::rangeSearch(Data begin, Data end) {
     response.startTimer();
     if (begin > end) { response.stopTimer(); indexFile.close(); return response;}
     try {
-        BinarySearchResponse bsr = this->binarySearch(indexFile, begin);
-        SequentialIndexRecord sir;
+        BinarySearchResponse<KEY_TYPE> bsr = this->binarySearch(indexFile, begin);
+        SequentialIndexRecord<KEY_TYPE> sir;
         if (bsr.location == EMPTY_FILE) { response.stopTimer(); indexFile.close(); return response; 
         } else if (bsr.location == REC_CUR) {
             sir = bsr.sir;
@@ -573,8 +483,8 @@ Response SequentialIndex::rangeSearch(Data begin, Data end) {
         if (sir.data <= begin) {
             // Move to the next record
             if (sir.next_file == INDEXFILE) {
-                if (sir.next_pos == -1) { response.stopTimer(); indexFile.close(); return response; }
-                moveReadRecord(indexFile, sir.next_pos, sir);
+                if (sir.next_pos == END_OF_FILE) { response.stopTimer(); indexFile.close(); return response; }
+                this->moveReadRecord(indexFile, sir.next_pos, sir);
             } else {
                 std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
                 if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
@@ -587,11 +497,11 @@ Response SequentialIndex::rangeSearch(Data begin, Data end) {
         if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
         while(sir.data <= end) {
             this->getAllRawCurrentRecords(sir, response.records);
-            if (sir.next_pos == -1) { break; }
+            if (sir.next_pos == END_OF_FILE) { break; }
             if (sir.next_file == INDEXFILE) {
-                moveReadRecord(indexFile, sir.next_pos, sir);
+                this->moveReadRecord(indexFile, sir.next_pos, sir);
             } else {
-                moveReadRecord(auxFile, sir.next_pos, sir);
+                this->moveReadRecord(auxFile, sir.next_pos, sir);
             }
         }
         auxFile.close();
@@ -606,7 +516,8 @@ Response SequentialIndex::rangeSearch(Data begin, Data end) {
     return response;
 }
 
-Response SequentialIndex::erase(Data data, Response& response) {
+template <typename KEY_TYPE>
+Response SequentialIndex<KEY_TYPE>::erase(Data<KEY_TYPE> data, Response& response) {
 
     std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
     if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
@@ -614,20 +525,36 @@ Response SequentialIndex::erase(Data data, Response& response) {
     response.startTimer();
     try {
         BinarySearchResponse bsr = this->binarySearch(indexFile, data);
-        if (bsr.location == EMPTY_FILE) { response.stopTimer(); indexFile.close(); return response; 
-        } else if (bsr.location == REC_CUR) {
+
+        std::cout<<"bsr.location: "<<bsr.location<<std::endl;
+        if (bsr.location == EMPTY_FILE) { response.stopTimer(); indexFile.close(); return response; }
+        else if (bsr.location == REC_CUR) {
             if (bsr.sir.current_pos == sizeof(SequentialIndexHeader)) {
                 SequentialIndexHeader sih;
                 this->readHeader(indexFile, sih);
                 if (sih.next_file == INDEXFILE) {
-                    sih.next_file = bsr.sir.next_file;
-                    sih.next_pos = bsr.sir.next_pos;
 
-                    bsr.sir.next_file = -1;
-                    bsr.sir.next_pos = -1;
+                    sih.setNext(bsr.sir.next_pos, bsr.sir.next_file);
+                    bsr.sir.setNext(END_OF_FILE, INDEXFILE);
 
-                    this->writeHeader(indexFile, sih.next_pos, sih.next_file);
+                    this->writeHeader(indexFile, sih);
                     this->moveWriteRecord(indexFile, bsr.sir.current_pos, bsr.sir);
+                } else {
+                    std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
+                    if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
+
+                    SequentialIndexRecord<KEY_TYPE> sir_cur;
+                    this->moveReadRecord(auxFile, sih.next_pos, sir_cur);
+                    while (sir_cur.next_file != INDEXFILE) {
+                        this->moveReadRecord(auxFile, sir_cur.next_pos, sir_cur);
+                    }
+
+                    sir_cur.setNext(bsr.sir.next_pos, bsr.sir.next_file);
+                    bsr.sir.setNext(END_OF_FILE, INDEXFILE);
+
+                    this->moveWriteRecord(auxFile, sir_cur.current_pos, sir_cur);
+
+                    auxFile.close();
                 }
                 response.records.push_back(bsr.sir.raw_pos);
                 response.stopTimer(); 
@@ -635,7 +562,7 @@ Response SequentialIndex::erase(Data data, Response& response) {
                 return response;
             } else if (bsr.sir_prev.next_file == INDEXFILE) {
                 bsr.sir_prev.setNext(bsr.sir.next_pos, bsr.sir.next_file);
-                bsr.sir.setNext(-1, INDEXFILE);
+                bsr.sir.setNext(END_OF_FILE, INDEXFILE);
 
                 this->moveWriteRecord(indexFile, bsr.sir_prev.current_pos, bsr.sir_prev);
                 this->moveWriteRecord(indexFile, bsr.sir.current_pos, bsr.sir);
@@ -644,19 +571,41 @@ Response SequentialIndex::erase(Data data, Response& response) {
                 response.stopTimer();
                 indexFile.close();
                 return response;
+            } else {
+                std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
+                if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
+
+                SequentialIndexRecord<KEY_TYPE> sir_cur;
+                this->moveReadRecord(auxFile, bsr.sir_prev.next_pos, sir_cur);
+                while (sir_cur.next_file != INDEXFILE) {
+                    this->moveReadRecord(auxFile, sir_cur.next_pos, sir_cur);
+                }
+
+                sir_cur.setNext(bsr.sir.next_pos, bsr.sir.next_file);
+                bsr.sir.setNext(END_OF_FILE, INDEXFILE);
+
+                this->moveWriteRecord(auxFile, sir_cur.current_pos, sir_cur);
+                this->moveWriteRecord(indexFile, bsr.sir.current_pos, bsr.sir);
+
+                response.records.push_back(bsr.sir.raw_pos);
+                response.stopTimer();
+                indexFile.close();
+                auxFile.close();
+                return response;
             }
         } else {
             std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
-            SequentialIndexRecord sir_cur;
-            SequentialIndexRecord sir_prev;
+            if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
+            SequentialIndexRecord<KEY_TYPE> sir_cur;
+            SequentialIndexRecord<KEY_TYPE> sir_prev;
             // Record to delete is not in files
             if (
                 (bsr.header && bsr.sih.next_file == INDEXFILE) || 
                 (bsr.location == REC_PREV && bsr.sir_prev.next_file == INDEXFILE) ||
                 (bsr.location == REC_NEXT && bsr.sir.next_file == INDEXFILE) ||
-                (bsr.header && bsr.sih.next_pos == -1) ||
-                (bsr.location == REC_PREV && bsr.sir_prev.next_pos == -1) ||
-                (bsr.location == REC_NEXT && bsr.sir.next_pos == -1)
+                (bsr.header && bsr.sih.next_pos == END_OF_FILE) ||
+                (bsr.location == REC_PREV && bsr.sir_prev.next_pos == END_OF_FILE) ||
+                (bsr.location == REC_NEXT && bsr.sir.next_pos == END_OF_FILE)
             ) {
                 response.stopTimer();
                 indexFile.close();
@@ -669,15 +618,16 @@ Response SequentialIndex::erase(Data data, Response& response) {
                 if (sir_cur.data == data) {
                     bsr.sih.next_pos = sir_cur.next_pos;
                     bsr.sih.next_file = sir_cur.next_file;
-                    sir_cur.setNext(-1, INDEXFILE);
-                    this->writeHeader(indexFile, bsr.sih.next_pos, bsr.sih.next_file);
+                    sir_cur.setNext(END_OF_FILE, INDEXFILE);
+                    SequentialIndexHeader new_sih(bsr.sih.next_pos, bsr.sih.next_file);
+                    this->writeHeader(indexFile, new_sih);
                     this->moveWriteRecord(indexFile, sir_cur.current_pos, sir_cur);
                     auxFile.close();
                     response.stopTimer();
                     indexFile.close();
                     return response;
                 } else {
-                    if (sir_cur.next_file == INDEXFILE || sir_cur.next_pos == -1 || sir_cur.data > data) {
+                    if (sir_cur.next_file == INDEXFILE || sir_cur.next_pos == END_OF_FILE || sir_cur.data > data) {
                         response.stopTimer();
                         indexFile.close();
                         auxFile.close();
@@ -692,16 +642,13 @@ Response SequentialIndex::erase(Data data, Response& response) {
                 sir_prev = bsr.sir_prev;
                 this->moveReadRecord(auxFile, sir_prev.next_pos, sir_cur);
             } else if (bsr.location == REC_NEXT) {
-                                                std::cout<<"ACA"<<std::endl;
                 sir_prev = bsr.sir;
                 this->moveReadRecord(auxFile, sir_cur.next_pos, sir_cur);
             }
-            std::cout<<"SIR_PREV: "<<sir_prev<<std::endl;
-            std::cout<<"SIR_CUR: "<<sir_cur<<std::endl;
             while(true) {
                 if (sir_cur.data == data) {
                     sir_prev.setNext(sir_cur.next_pos, sir_cur.next_file);
-                    sir_cur.setNext(-1, INDEXFILE);
+                    sir_cur.setNext(END_OF_FILE, INDEXFILE);
 
                     if (sir_prev.current_file == INDEXFILE) {
                         this->moveWriteRecord(indexFile, sir_prev.current_pos, sir_prev);
@@ -711,7 +658,7 @@ Response SequentialIndex::erase(Data data, Response& response) {
                     this->moveWriteRecord(auxFile, sir_cur.current_pos, sir_cur);
                     break;
                 }
-                if (sir_cur.next_file == INDEXFILE || sir_cur.next_pos == -1 || sir_cur.data > data) { 
+                if (sir_cur.next_file == INDEXFILE || sir_cur.next_pos == END_OF_FILE || sir_cur.data > data) { 
                     response.stopTimer();
                     indexFile.close();
                     auxFile.close();
@@ -735,7 +682,8 @@ Response SequentialIndex::erase(Data data, Response& response) {
 }
 
 
-Response SequentialIndex::erase(Data data) {
+template <typename KEY_TYPE>
+Response SequentialIndex<KEY_TYPE>::erase(Data<KEY_TYPE> data) {
     Response response;
     this->erase(data, response);
     if (response.records.size() != 0) {
@@ -744,83 +692,46 @@ Response SequentialIndex::erase(Data data) {
     return response;
 }
 
+template <typename KEY_TYPE>
+std::string SequentialIndex<KEY_TYPE>::get_index_name() {
+    return this->index_name;
+}
+
 /*
     Print files sequentially
 */
-void SequentialIndex::printIndexFile() {
-    std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
-    SequentialIndexHeader sih;
-    SequentialIndexRecord sir;
+template <typename KEY_TYPE>
+void SequentialIndex<KEY_TYPE>::printIndexFile() {
     try {
-        while(indexFile.peek() != EOF) {
-            if (indexFile.tellg() == 0) {
-                this->readHeader(indexFile, sih);
-                std::cout<<sih<<std::endl;
-            } else {
-                this->readRecord(indexFile, sir);
-                std::cout<<sir<<std::endl;
-            }
-        }
+        this->template printFileWithHeader<SequentialIndexHeader, SequentialIndexRecord<KEY_TYPE>>(this->indexFilename);
     } catch (std::runtime_error) {
-        indexFile.close();
-        throw std::runtime_error("Couldn't print indexFile");
+        throw std::runtime_error("Couldn't print index file");
     }
-    
-    indexFile.close();
 }
 
-void SequentialIndex::printAuxFile() {
-    std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
-    SequentialIndexRecord sir;
+template <typename KEY_TYPE>
+void SequentialIndex<KEY_TYPE>::printAuxFile() {
     try {
-        while(auxFile.peek() != EOF) {
-            this->readRecord(auxFile, sir);
-            std::cout<<sir<<std::endl;
-        }
+        this->template printFile<SequentialIndexRecord<KEY_TYPE>>(this->auxFilename);
     } catch (std::runtime_error) {
-        auxFile.close();
-        throw std::runtime_error("Couldn't print auxFile");
+        throw std::runtime_error("Couldn't print aux file");
     }
-    auxFile.close();
 }
 
-void SequentialIndex::printDuplicatesFile() {
-    std::fstream duplicatesFile(this->duplicatesFilename, std::ios::in | std::ios::out | std::ios::binary);
-    SequentialIndexRecord sir;
+template <typename KEY_TYPE>
+void SequentialIndex<KEY_TYPE>::printDuplicatesFile() {
     try {
-        while(duplicatesFile.peek() != EOF) {
-            this->readRecord(duplicatesFile, sir);
-            std::cout<<sir<<std::endl;
-        }
+        this->template printFile<SequentialIndexRecord<KEY_TYPE>>(this->duplicatesFilename);
     } catch (std::runtime_error) {
-        duplicatesFile.close();
-        throw std::runtime_error("Couldn't print duplicatesFile");
+        throw std::runtime_error("Couldn't print duplicates file");
     }
-    duplicatesFile.close();
 }
 
-size_t SequentialIndex::numberIndexRecords(){
-    std::ifstream indexFile(this->indexFilename, std::ios::in | std::ios::binary);
-    if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
-    indexFile.seekg(0, std::ios::end);
-    size_t size = indexFile.tellg();
-    indexFile.close();
-    return (size - sizeof(SequentialIndexHeader)) / sizeof(SequentialIndexRecord);
-}
-
-size_t SequentialIndex::numberAuxRecords(){
-    std::ifstream auxFile(this->auxFilename, std::ios::in | std::ios::binary);
-    if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
-    auxFile.seekg(0, std::ios::end);
-    size_t size = auxFile.tellg();
-    auxFile.close();
-    return size / sizeof(SequentialIndexRecord);
-}
-
-bool SequentialIndex::validNumberRecords(){
-    size_t indexRecords = this->numberIndexRecords();
-    size_t auxRecords = this->numberAuxRecords();
+template <typename KEY_TYPE>
+bool SequentialIndex<KEY_TYPE>::validNumberRecords() {
+    size_t indexRecords = this->template numberRecordsWithHeader<SequentialIndexHeader, SequentialIndexRecord<KEY_TYPE>>(this->indexFilename);
+    size_t auxRecords = this->template numberRecords<SequentialIndexRecord<KEY_TYPE>>(this->auxFilename);
     return log2(indexRecords) >= auxRecords;
 }
 
-#endif //SEQUENTIALINDEX_CPP
+#endif // SEQUENTIAL_INDEX_TPP

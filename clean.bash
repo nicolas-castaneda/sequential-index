@@ -1,4 +1,2 @@
-rm a.bin
-rm i.bin
-rm d.bin
-make clean
+#!/bin/bash
+rm t1_attr1_Sequential_indexFile.bin;rm t1_attr1_Sequential_auxFile.bin;rm t1_attr1_Sequential_duplicateFile.bin;make clean
