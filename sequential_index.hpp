@@ -63,6 +63,8 @@ public:
         Query functions
     */
 
+    Response bulkLoad(std::vector<std::pair<Data<KEY_TYPE>, physical_pos>>& records);
+
     Response add(Data<KEY_TYPE> data, physical_pos raw_pos) override;
     Response search(Data<KEY_TYPE> data) override;
     Response rangeSearch(Data<KEY_TYPE> begin, Data<KEY_TYPE> end) override;

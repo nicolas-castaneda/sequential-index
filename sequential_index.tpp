@@ -453,8 +453,9 @@ void SequentialIndex<KEY_TYPE>::searchAuxFile(Data<KEY_TYPE> data, BinarySearchR
         }
         this->readRecord(auxFile, sir);
         while(data >= sir.data) {
+            std::cout<<sir<<std::endl;
             if (sir.data == data) { this->getAllRawCurrentRecords(sir, records); break;}
-            if (sir.next_file != INDEXFILE) { break; }
+            if (sir.next_file == INDEXFILE || sir.next_pos == END_OF_FILE) { break; }
             auxFile.seekp(sir.next_pos, std::ios::beg);
             this->readRecord(auxFile, sir);
         }
@@ -505,6 +506,7 @@ Response SequentialIndex<KEY_TYPE>::rangeSearch(Data<KEY_TYPE> begin, Data<KEY_T
     try {
         BinarySearchResponse<KEY_TYPE> bsr = this->binarySearch(indexFile, begin);
         SequentialIndexRecord<KEY_TYPE> sir;
+
         if (bsr.location == EMPTY_FILE) { response.stopTimer(); indexFile.close(); return response; 
         } else if (bsr.location == REC_CUR) {
             sir = bsr.sir;
@@ -528,6 +530,7 @@ Response SequentialIndex<KEY_TYPE>::rangeSearch(Data<KEY_TYPE> begin, Data<KEY_T
         std::fstream auxFile(this->auxFilename, std::ios::in | std::ios::out | std::ios::binary);
         if (!auxFile.is_open()) throw std::runtime_error("Couldn't open auxFile");
         while(sir.data <= end) {
+
             this->getAllRawCurrentRecords(sir, response.records);
             if (sir.next_pos == END_OF_FILE) { break; }
             if (sir.next_file == INDEXFILE) {
@@ -720,6 +723,61 @@ Response SequentialIndex<KEY_TYPE>::erase(Data<KEY_TYPE> data) {
     if (response.records.size() != 0) {
         this->rebuild();
     }
+    return response;
+}
+
+template <typename KEY_TYPE>
+Response SequentialIndex<KEY_TYPE>::bulkLoad(std::vector<std::pair<Data<KEY_TYPE>, physical_pos>>& records) {
+    Response response;
+    response.startTimer();
+    try {
+        if (records.size() == 0) { response.stopTimer(); return response; }
+
+        std::sort(records.begin(), records.end(), [](std::pair<Data<KEY_TYPE>, physical_pos> a, std::pair<Data<KEY_TYPE>, physical_pos> b) {
+            return a.first < b.first;
+        });
+
+        std::fstream indexFile(this->indexFilename, std::ios::in | std::ios::out | std::ios::binary);
+        if (!indexFile.is_open()) throw std::runtime_error("Couldn't open indexFile");
+
+        indexFile.seekp(0, std::ios::end);
+        physical_pos physical_pos = indexFile.tellp();
+
+        if (physical_pos == sizeof(SequentialIndexHeader)) {
+            SequentialIndexHeader sih(sizeof(SequentialIndexHeader), INDEXFILE);
+            this->writeHeader(indexFile, sih);
+
+            SequentialIndexRecord<KEY_TYPE> sir_prev;
+            SequentialIndexRecord<KEY_TYPE> sir_cur;
+            for (size_t i = 0; i < records.size(); i++) {
+                sir_cur.setData(records[i].first);
+                sir_cur.setRawPos(records[i].second);
+                sir_cur.setDupPos(END_OF_FILE);
+                if (i == 0) {
+                    sir_cur.setCurrent(sizeof(SequentialIndexHeader), INDEXFILE);
+                    sir_cur.setNext(END_OF_FILE, INDEXFILE);
+                    this->moveWriteRecord(indexFile, sir_cur.current_pos, sir_cur);
+                    sir_prev = sir_cur;
+                } else {
+                    if (sir_cur.data == sir_prev.data) {
+                        this->insertDuplicate(indexFile, sir_prev, sir_cur);
+                    } else {
+                        sir_cur.setCurrent(sir_prev.current_pos + sizeof(SequentialIndexRecord<KEY_TYPE>), INDEXFILE);
+                        sir_cur.setNext(END_OF_FILE, INDEXFILE);
+                        sir_prev.setNext(sir_cur.current_pos, sir_cur.current_file);
+                        this->moveWriteRecord(indexFile, sir_prev.current_pos, sir_prev);
+                        this->moveWriteRecord(indexFile, sir_cur.current_pos, sir_cur);
+                        sir_prev = sir_cur;
+                    }
+                }
+            }
+        }
+    } catch (...) {
+        response.stopTimer();
+        throw std::runtime_error("Couldn't load records");
+    }
+
+    response.stopTimer();
     return response;
 }
 

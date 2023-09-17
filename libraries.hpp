@@ -8,5 +8,7 @@
 #include <vector>
 #include <ctime>
 #include <chrono>
+#include <random>
+#include <algorithm>
 
 #endif //LIBRARIES_HPP

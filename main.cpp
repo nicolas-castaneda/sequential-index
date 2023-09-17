@@ -24,7 +24,7 @@ void printResponse(Response& response){
 }
 
 template<typename KEY_TYPE>
-void addNRandomRecord(SequentialIndex<KEY_TYPE>& si, int N, KEY_TYPE min = 0, KEY_TYPE max = 100){
+void addNRandomRecord(SequentialIndex<KEY_TYPE>& si, int N, KEY_TYPE min = 0, KEY_TYPE max = 99){
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(min, max);
@@ -43,13 +43,30 @@ int main(){
 
     SequentialIndex<attribute_type> si(table_name, attribute_name, PK);
 
+    Response response;
+    std::vector<std::pair<Data<attribute_type>, physical_pos>> records;
 
-    addNRandomRecord(si, 1000);
+    for(double i = 0; i < 12; i++){
+        records.push_back(std::make_pair(Data<attribute_type>(2.08), 0));
+        
+    }
     
-    Response response = si.rangeSearch(Data(100.0), Data(500.5));
+    // PRIMERO BULK LOAD
+    si.bulkLoad(records);
 
-    si.erase(Data(100.0));
+
+    // DESPUES AÑADIR NORMAL
+    addNRandomRecord(si, 10);
+
+    printAllFiles(si);
+
+    response = si.rangeSearch(Data(0.0), Data(2.08));
+    printResponse(response); 
+
+    response = si.search(Data(0.0));
 
     printResponse(response);
+    
+
     return 0;
 }
